@@ -187,4 +187,22 @@ export class PersistenceService {
   getIndexDir(): string {
     return this.indexDir;
   }
+
+  /** Remove all data and re-create directory structure. */
+  resetAll(): void {
+    log.warn('Resetting all data', { dataDir: this.dataDir });
+    try {
+      if (fs.existsSync(this.dataDir)) {
+        fs.rmSync(this.dataDir, { recursive: true, force: true });
+      }
+      this.ensureDirectories();
+      log.info('Data directory reset complete', { dataDir: this.dataDir });
+    } catch (error) {
+      log.error('Failed to reset data directory', {
+        dataDir: this.dataDir,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
 }
