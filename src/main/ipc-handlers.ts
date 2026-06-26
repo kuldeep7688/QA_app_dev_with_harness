@@ -2,6 +2,7 @@ import { IpcMain, dialog, BrowserWindow } from 'electron';
 import { DocumentService } from '../services/document-service';
 import { IndexingService } from '../services/indexing-service';
 import { QaService } from '../services/qa-service';
+import { PersistenceService } from '../services/persistence-service';
 import { IPC_CHANNELS } from '../shared/types';
 import { logger } from '../services/logger';
 
@@ -11,10 +12,11 @@ export interface Services {
   documentService: DocumentService;
   indexingService: IndexingService;
   qaService: QaService;
+  persistenceService: PersistenceService;
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
-  const { documentService, indexingService, qaService } = services;
+  const { documentService, indexingService, qaService, persistenceService } = services;
 
   // Document operations
   ipcMain.handle(IPC_CHANNELS.LIST_DOCUMENTS, async () => {
@@ -119,6 +121,12 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
       });
       return null;
     }
+  });
+
+  // App reset
+  ipcMain.handle(IPC_CHANNELS.RESET_DATA, async () => {
+    log.info('IPC received', { channel: IPC_CHANNELS.RESET_DATA });
+    persistenceService.resetAll();
   });
 
   const registeredChannels = Object.values(IPC_CHANNELS);
