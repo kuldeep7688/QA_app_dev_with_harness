@@ -1144,3 +1144,91 @@ agent-progress.md                      - This entry
 - **Features Remaining:** 6 (clean-state-reset, persistence, status-bar, benchmark-scripts, cleanup-scanner, full-harness)
 - **Build Health:** ✅ Green
 - **Next Feature:** clean-state-reset
+
+---
+
+## Entry 09: Clean State Reset Feature (2026-06-26)
+
+**Feature:** clean-state-reset  
+**Status:** ✅ PASS  
+
+### What Was Implemented
+
+Reset button in header with custom confirmation dialog that clears all persisted data and returns the app to initial empty state.
+
+### Changes Made
+
+1. **`src/shared/types.ts`** — Added `RESET_DATA: 'app:reset'` to `IPC_CHANNELS`
+
+2. **`src/services/persistence-service.ts`** — Added `resetAll()` method:
+   - `fs.rmSync(dataDir, { recursive: true, force: true })` to remove entire data directory
+   - Re-runs `ensureDirectories()` to recreate directory structure
+   - Logs at WARN level per RELIABILITY.md spec
+   - Try/catch with ERROR log and re-throw
+
+3. **`src/main/ipc-handlers.ts`** — Added `PersistenceService` to `Services` interface, registered `app:reset` handler calling `persistenceService.resetAll()`, fixed missing `return`
+
+4. **`src/main/main.ts`** — Passed `persistenceService` to `registerIpcHandlers()` call
+
+5. **`src/preload/preload.ts`** — Added `RESET_DATA` channel and `app` namespace with `resetData()` to contextBridge API
+
+6. **`src/renderer/types.d.ts`** — Added `app: { resetData: () => Promise<void> }` type declaration
+
+7. **`src/renderer/components/ResetDialog.tsx`** — NEW: Custom dark-themed confirmation dialog:
+   - Full-viewport semi-transparent overlay
+   - Centered dialog card with dark theme styling (`#1a1a2e` bg, `#0f3460` border)
+   - "Reset Application Data?" title with warning message
+   - Cancel button (blue tint) and Reset button (red `#8b0000`)
+   - Click-outside-to-dismiss on overlay
+
+8. **`src/renderer/App.tsx`** — Added:
+   - `showResetDialog` state variable
+   - `handleReset` callback: calls `app.resetData()` then clears all React state
+   - Reset button (red) in header before Refresh button
+   - Conditional rendering of `ResetDialog` component
+
+### Implementation Approach
+
+Followed subagent-driven-development: 8 implementation tasks dispatched sequentially with spec compliance and code quality reviews after each. Fixed one issue found during review (missing `return` keyword on IPC handler).
+
+### Verification
+
+```
+✅ npm run check  — 0 TypeScript errors
+✅ npm run build  — 34 modules, 161 kB
+✅ Cleanup scanner — CLEAN (0 issues)
+✅ init.sh — passes (only pre-existing missing files: CLAUDE.md, quality-document.md)
+✅ feature_list.json → clean-state-reset: "pass"
+```
+
+### Key Learnings
+
+1. **IPC Chain Pattern:** Full reset flow follows the same 6-layer chain as every other feature: type → service → IPC handler → preload → renderer type → UI. Consistency reduces bugs.
+2. **Custom Dialog UX:** The `ResetDialog` component follows the established inline-style pattern of other components while adding click-outside-to-dismiss for better UX.
+3. **State Cleanup After Reset:** All 7 pieces of React state must be cleared (documents, history, selectedDoc, showHistory, showImport, showResetDialog, appStatus) to fully return to initial empty state.
+4. **Subagent Workflow:** Using separate subagents per task with two-stage review after each caught the missing `return` in the IPC handler — a bug that would have caused issues if `resetAll()` ever changed to return a value.
+
+### Files Modified
+
+```
+src/shared/types.ts                          - Added RESET_DATA channel
+src/services/persistence-service.ts          - Added resetAll() method
+src/main/ipc-handlers.ts                     - PersistenceService in Services, app:reset handler
+src/main/main.ts                             - Wired persistenceService
+src/preload/preload.ts                       - app namespace with resetData()
+src/renderer/types.d.ts                      - app namespace type
+src/renderer/components/ResetDialog.tsx       - NEW: confirmation dialog
+src/renderer/App.tsx                          - Reset button, dialog state, handler
+docs/superpowers/specs/2026-06-26-clean-state-reset-design.md  - Design doc
+docs/superpowers/plans/2026-06-26-clean-state-reset.md         - Implementation plan
+feature_list.json                            - clean-state-reset → pass
+session-handoff.md                           - Updated
+agent-progress.md                            - This entry
+```
+
+### Status Summary
+
+- **Features Complete:** 15/20
+- **Features Remaining:** 5 (persistence, status-bar, benchmark-scripts, cleanup-scanner, full-harness)
+- **Build Health:** ✅ Green
+- **Next Feature:** persistence

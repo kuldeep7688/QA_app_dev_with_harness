@@ -104,7 +104,7 @@ When resuming work, read `session-handoff.md` for context from the previous sess
 - Files that were modified
 - Benchmark results if applicable
 
-Update the agent-progress.md by appending a new entry with implementation details, learnings, and verification
+Update the `agent-progress.md` by appending a new entry with implementation details, learnings, and verification
 
 ## Clean State
 

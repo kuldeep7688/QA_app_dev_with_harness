@@ -4,14 +4,16 @@
 
 ### Recently Completed
 
-**Feedback Collection Feature** (2026-06-26)
-- Added `FeedbackEntry` interface and `SUBMIT_FEEDBACK`/`LIST_FEEDBACK` IPC channels to `src/shared/types.ts`
-- Added `submitFeedback()` and `getFeedback()` methods to `QaService` with persistence to `feedback.json`
-- Registered `feedback:submit` and `feedback:list` IPC handlers in `ipc-handlers.ts`
-- Exposed `window.knowledgeBase.feedback.submit()` and `feedback.list()` in preload
-- Added feedback prop types to renderer declarations
-- ConversationHistory: thumbs up/down buttons on each assistant answer bubble; disables after submission with "Thanks!"/"Noted" state
-- App.tsx: `handleSubmitFeedback` callback passed to ConversationHistory
+**Clean State Reset Feature** (2026-06-26)
+- Added `RESET_DATA: 'app:reset'` to IPC_CHANNELS in `src/shared/types.ts`
+- Added `PersistenceService.resetAll()` — removes data dir with `fs.rmSync`, recreates via `ensureDirectories()`, logs at WARN
+- Registered `app:reset` IPC handler in `ipc-handlers.ts`, added `PersistenceService` to `Services` interface
+- Wired `persistenceService` in `main.ts` to IPC handler registration
+- Exposed `window.knowledgeBase.app.resetData()` in preload
+- Added `app` namespace type declaration in `types.d.ts`
+- Created `ResetDialog.tsx` — custom dark-themed confirmation dialog with overlay
+- Added Reset button (red) in header with dialog state management
+- `handleReset` clears all React state after calling `resetData()`
 
 ### Feature Status
 
@@ -31,7 +33,7 @@
 | structured-logging | ✅ pass |
 | conversation-history | ✅ pass |
 | feedback-collection | ✅ pass |
-| clean-state-reset | 🔲 not-started |
+| clean-state-reset | ✅ pass |
 | persistence | 🔲 not-started |
 | status-bar | 🔲 not-started |
 | benchmark-scripts | 🔲 not-started |
@@ -40,24 +42,34 @@
 
 ### Files Modified (2026-06-26)
 
-- `src/shared/types.ts` — added `FeedbackEntry` interface, `SUBMIT_FEEDBACK`, `LIST_FEEDBACK` IPC channels
-- `src/services/qa-service.ts` — added `submitFeedback()`, `getFeedback()` methods with persistence and logging
-- `src/main/ipc-handlers.ts` — registered `feedback:submit` and `feedback:list` handlers
-- `src/preload/preload.ts` — added feedback namespace to API with `submit` and `list`
-- `src/renderer/types.d.ts` — added feedback methods to window type
-- `src/renderer/shared-types.ts` — re-exported `FeedbackEntry`
-- `src/renderer/App.tsx` — added `handleSubmitFeedback` callback, passed to ConversationHistory
-- `src/renderer/components/ConversationHistory.tsx` — added thumbs up/down buttons on each assistant answer bubble
-- `feature_list.json` — feedback-collection → pass
+- `src/shared/types.ts` — added `RESET_DATA: 'app:reset'` to IPC_CHANNELS
+- `src/services/persistence-service.ts` — added `resetAll()` method
+- `src/main/ipc-handlers.ts` — added PersistenceService to Services interface, registered app:reset handler
+- `src/main/main.ts` — passed persistenceService to registerIpcHandlers
+- `src/preload/preload.ts` — added app namespace with resetData()
+- `src/renderer/types.d.ts` — added app namespace type
+- `src/renderer/components/ResetDialog.tsx` — NEW: confirmation dialog component
+- `src/renderer/App.tsx` — added Reset button, showResetDialog state, handleReset callback
+- `feature_list.json` — clean-state-reset → pass
 
 ### Build Status
 
 ```
 ✅ npm run check  (TypeScript 0 errors)
-✅ npm run build  (Vite 33 modules, 159 kB)
+✅ npm run build  (Vite 34 modules, 161 kB)
 ```
 
 ### Architecture Notes
+
+**Clean State Reset flow:**
+1. User clicks Reset button (red, in header)
+2. `ResetDialog` confirmation dialog appears with "Reset Application Data?" message
+3. User clicks Reset → `window.knowledgeBase.app.resetData()` called
+4. Preload bridge invokes `ipcRenderer.invoke('app:reset')`
+5. `ipc-handlers.ts` delegates to `PersistenceService.resetAll()`
+6. `resetAll()` removes entire `knowledge-base-data/` dir, recreates directory structure
+7. Renderer clears all React state (documents, history, selected doc, app status)
+8. App returns to initial empty state with "Select a document or ask a question" message
 
 **Feedback flow:**
 1. User clicks thumbs up/down on an assistant answer bubble in ConversationHistory
@@ -70,13 +82,12 @@
 
 ## Next Features to Implement
 
-1. **clean-state-reset** — Reset button in header, confirmation dialog, `app:reset` IPC
-2. **persistence** — verify all data persists across restarts (documents, chunks, history, feedback)
-3. **status-bar** — already partially implemented; verify all fields render
+1. **persistence** — verify all data persists across restarts (documents, chunks, history, feedback)
+2. **status-bar** — already partially implemented; verify all fields render
 
 ## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions
 2. Run `npm run check` to verify build health
 3. Follow one-feature-at-a-time discipline
-4. Next feature: `clean-state-reset`
+4. Next feature: `persistence`

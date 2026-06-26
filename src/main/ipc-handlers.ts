@@ -126,7 +126,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
   // App reset
   ipcMain.handle(IPC_CHANNELS.RESET_DATA, async () => {
     log.info('IPC received', { channel: IPC_CHANNELS.RESET_DATA });
-    persistenceService.resetAll();
+    return persistenceService.resetAll();
   });
 
   const registeredChannels = Object.values(IPC_CHANNELS);

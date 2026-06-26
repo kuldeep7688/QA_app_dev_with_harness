@@ -118,9 +118,9 @@
       "id": "clean-state-reset",
       "name": "Clean State Reset",
       "description": "Application supports resetting all data to clean state. Clears documents, chunks, Q&A history, and feedback.",
-      "status": "not-started",
-      "evidence": null,
-      "testedAt": null
+      "status": "pass",
+      "evidence": "Added app:reset IPC channel (RESET_DATA), PersistenceService.resetAll() removes/recreates data directory, custom ResetDialog confirmation component with dark theme, Reset button in header. Full reset clears all React state and returns app to empty state.",
+      "testedAt": "2026-06-26T12:30:00Z"
     },
     {
       "id": "persistence",
