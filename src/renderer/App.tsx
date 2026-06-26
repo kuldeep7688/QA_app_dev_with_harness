@@ -1,0 +1,230 @@
+import { useState, useCallback, useEffect } from 'react';
+import { DocumentList } from './components/DocumentList';
+import { QuestionPanel } from './components/QuestionPanel';
+import { DocumentDetail } from './components/DocumentDetail';
+import { ImportPanel } from './components/ImportPanel';
+import { StatusBar } from './components/StatusBar';
+import { ConversationHistory } from './components/ConversationHistory';
+import { Document, AppStatus, QAHistory } from './shared-types';
+
+export function App() {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [appStatus, setAppStatus] = useState<AppStatus>({
+    documentsLoaded: 0,
+    indexStatus: 'idle',
+    lastActivity: '',
+    indexedCount: 0,
+  });
+  const [history, setHistory] = useState<QAHistory[]>([]);
+  const [showImport, setShowImport] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Verify preload loaded
+  useEffect(() => {
+    console.log('[Renderer] Checking window.knowledgeBase...');
+    console.log('[Renderer] window.knowledgeBase exists?', !!window.knowledgeBase);
+    if (window.knowledgeBase) {
+      console.log('[Renderer] window.knowledgeBase.dialog exists?', !!window.knowledgeBase.dialog);
+      console.log('[Renderer] window.knowledgeBase.documents exists?', !!window.knowledgeBase.documents);
+      console.log('[Renderer] Full API:', Object.keys(window.knowledgeBase));
+    } else {
+      console.error('[Renderer] ❌ window.knowledgeBase is NOT defined! Preload script did not load.');
+    }
+  }, []);
+
+  // Load documents and history on mount
+  useEffect(() => {
+    refreshDocuments();
+    refreshHistory();
+  }, []);
+
+  const refreshDocuments = useCallback(async () => {
+    try {
+      const docs = await window.knowledgeBase.documents.list();
+      setDocuments(docs);
+      const status = await window.knowledgeBase.indexing.status();
+      setAppStatus(status);
+    } catch (err) {
+      console.error('Failed to refresh documents:', err);
+    }
+  }, []);
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      const h = await window.knowledgeBase.qa.history();
+      setHistory(h);
+    } catch (err) {
+      console.error('Failed to refresh history:', err);
+    }
+  }, []);
+
+  const handleImport = useCallback(async (filePath: string) => {
+    try {
+      await window.knowledgeBase.documents.import(filePath);
+      await refreshDocuments();
+      setShowImport(false);
+    } catch (err) {
+      console.error('Import failed:', err);
+    }
+  }, [refreshDocuments]);
+
+  const handleSelectDocument = useCallback((doc: Document) => {
+    setSelectedDoc(doc);
+    setShowHistory(false);
+  }, []);
+
+  const handleAskQuestion = useCallback(async (question: string) => {
+    try {
+      await window.knowledgeBase.qa.ask(question);
+      // Reload full history so the new entry is included
+      await refreshHistory();
+      // Show history panel after asking a question
+      setShowHistory(true);
+      setShowImport(false);
+    } catch (err) {
+      console.error('Q&A failed:', err);
+    }
+  }, [refreshHistory]);
+
+  const handleDeleteDocument = useCallback(async (id: string) => {
+    try {
+      await window.knowledgeBase.documents.delete(id);
+      if (selectedDoc?.id === id) {
+        setSelectedDoc(null);
+      }
+      await refreshDocuments();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+  }, [selectedDoc, refreshDocuments]);
+
+  const handleClearHistory = useCallback(async () => {
+    try {
+      await window.knowledgeBase.qa.clearHistory();
+      setHistory([]);
+    } catch (err) {
+      console.error('Clear history failed:', err);
+    }
+  }, []);
+
+  const handleShowHistory = useCallback(() => {
+    setShowHistory(true);
+    setShowImport(false);
+  }, []);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <header style={{
+        padding: '12px 20px',
+        background: '#16213e',
+        borderBottom: '1px solid #0f3460',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <h1 style={{ fontSize: '18px', fontWeight: 600 }}>Knowledge Base</h1>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={handleShowHistory}
+            style={{
+              padding: '6px 14px',
+              background: showHistory ? '#533483' : '#0f3460',
+              color: '#e0e0e0',
+              border: `1px solid ${showHistory ? '#7044bb' : '#1a1a4e'}`,
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            History {history.length > 0 ? `(${history.length})` : ''}
+          </button>
+          <button
+            onClick={refreshDocuments}
+            style={{
+              padding: '6px 14px',
+              background: '#0f3460',
+              color: '#e0e0e0',
+              border: '1px solid #1a1a4e',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* Left panel: Document list */}
+        <div style={{
+          width: '280px',
+          borderRight: '1px solid #0f3460',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#16213e',
+        }}>
+          <div style={{
+            padding: '10px 16px',
+            borderBottom: '1px solid #0f3460',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: '#a0a0c0' }}>
+              Documents ({documents.length})
+            </span>
+            <button
+              onClick={() => {
+                setShowImport(!showImport);
+                if (!showImport) setShowHistory(false);
+              }}
+              style={{
+                padding: '4px 10px',
+                background: '#533483',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              {showImport ? 'Cancel' : '+ Import'}
+            </button>
+          </div>
+          <DocumentList
+            documents={documents}
+            onSelect={handleSelectDocument}
+            selectedId={selectedDoc?.id ?? null}
+          />
+        </div>
+
+        {/* Right panel: Import / Conversation History / Document detail */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+            {showImport ? (
+              <ImportPanel onImport={handleImport} />
+            ) : showHistory ? (
+              <ConversationHistory history={history} onClearHistory={handleClearHistory} />
+            ) : selectedDoc ? (
+              <DocumentDetail
+                document={selectedDoc}
+                onDelete={handleDeleteDocument}
+                onIndexed={refreshDocuments}
+              />
+            ) : (
+              <div style={{ color: '#666', textAlign: 'center', paddingTop: '40px' }}>
+                Select a document or ask a question to get started
+              </div>
+            )}
+          </div>
+
+          <QuestionPanel onAsk={handleAskQuestion} />
+        </div>
+      </div>
+
+      <StatusBar status={appStatus} />
+    </div>
+  );
+}

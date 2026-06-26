@@ -1,0 +1,166 @@
+{
+  "project": "project-03",
+  "description": "Multi-session continuity with scope control, indexing, metadata, and grounded QA",
+  "features": [
+    {
+      "id": "window-launch",
+      "name": "Window Launch",
+      "description": "Electron app opens a BrowserWindow with correct dimensions and preload script",
+      "status": "pass",
+      "evidence": "Carried over from P2 -- verified working",
+      "testedAt": "2026-03-30T10:00:00Z"
+    },
+    {
+      "id": "document-list",
+      "name": "Document List Panel",
+      "description": "Left sidebar shows imported documents with empty state message",
+      "status": "pass",
+      "evidence": "Carried over from P2 -- verified working",
+      "testedAt": "2026-03-30T10:05:00Z"
+    },
+    {
+      "id": "question-panel",
+      "name": "Question Panel",
+      "description": "Bottom input bar accepts questions and submits via IPC",
+      "status": "pass",
+      "evidence": "Carried over from P2 -- verified working",
+      "testedAt": "2026-03-30T10:08:00Z"
+    },
+    {
+      "id": "data-directory",
+      "name": "Data Directory",
+      "description": "PersistenceService creates and manages userData/knowledge-base-data directory",
+      "status": "pass",
+      "evidence": "Carried over from P2 -- verified working",
+      "testedAt": "2026-03-30T10:10:00Z"
+    },
+    {
+      "id": "document-import",
+      "name": "Document Import",
+      "description": "Users can import .txt and .md files via ImportPanel with file picker",
+      "status": "pass",
+      "evidence": "Fixed: Replaced HTML file input with Electron's native dialog API and inlined IPC channels in preload to avoid module resolution issues. Dialog now opens and files can be imported successfully.",
+      "testedAt": "2026-06-25T20:10:00Z"
+    },
+    {
+      "id": "document-detail",
+      "name": "Document Detail with Content",
+      "description": "DocumentDetail shows full document content, metadata, and delete button",
+      "status": "pass",
+      "evidence": "Carried over from P2 -- verified working",
+      "testedAt": "2026-03-30T11:15:00Z"
+    },
+    {
+      "id": "basic-persistence",
+      "name": "Basic Persistence",
+      "description": "Imported documents persist across app restarts via filesystem storage",
+      "status": "pass",
+      "evidence": "Carried over from P2 -- verified working",
+      "testedAt": "2026-03-30T11:30:00Z"
+    },
+    {
+      "id": "document-chunking",
+      "name": "Document Chunking",
+      "description": "IndexingService splits documents into ~500 char chunks at paragraph boundaries",
+      "status": "pass",
+      "evidence": "Implemented complete chunking pipeline: IndexingService.chunkDocument() splits content on paragraph boundaries (~500 chars), stores chunks in chunks/<doc-id>.json, updates document status to 'indexed', and tracks chunk count in metadata. Integration test verified: 1786-char document generated 5 chunks (avg 356 chars), all chunks have required properties (id, documentId, content, index, metadata with charCount/wordCount), indexes are sequential. UI includes 'Index Document' button and 'Show Chunks' viewer in DocumentDetail.",
+      "testedAt": "2026-06-25T20:20:00Z"
+    },
+    {
+      "id": "metadata-extraction",
+      "name": "Metadata Extraction",
+      "description": "On import, extract word count, line count, and file type metadata from documents",
+      "status": "pass",
+      "evidence": "Implemented metadata extraction in DocumentService.importDocument(): added wordCount (split content by whitespace), lineCount (split by newlines), and fileType (extract extension) to Document interface. Updated DocumentDetail component to display these fields. Integration test verified: 138-byte .txt file correctly extracted 24 words, 6 lines, and 'txt' type; .md file correctly identified as 'md' type. All tests passed.",
+      "testedAt": "2026-06-25T20:30:00Z"
+    },
+    {
+      "id": "indexing-status-ui",
+      "name": "Indexing Status in StatusBar",
+      "description": "StatusBar shows indexing progress with document counts and status indicator",
+      "status": "pass",
+      "evidence": "Implemented indexing status display in StatusBar: Added 'indexedCount' field to AppStatus interface; updated StatusBar to show 'X of Y indexed' format; fixed status refresh flow by adding onIndexed callback to DocumentDetail that triggers App.refreshDocuments() after indexing completes. Status indicator shows color-coded states: grey (idle), yellow (indexing - partial), green (ready - all indexed), red (error). Integration test verified: correct counts at each stage (0/0, 0/3, 1/3, 2/3, 3/3), status transitions from idle → indexing → ready, lastActivity timestamp updates. All TypeScript checks pass.",
+      "testedAt": "2026-06-26T00:47:00Z"
+    },
+    {
+      "id": "grounded-qa",
+      "name": "Grounded Q&A with Citations",
+      "description": "QaService returns answers with document citations and confidence scores",
+      "status": "pass",
+      "evidence": "Implemented complete grounded Q&A pipeline: QaService.ask() performs keyword-based retrieval across all indexed chunks using IndexingService.getAllChunks(), ranks chunks by query-keyword overlap, returns top 2 relevant chunks as citations (documentTitle, chunkIndex, excerpt). Confidence score is 0.85 with citations, 0.3 without. Mock answer patterns provide domain-specific responses, fallback uses citation excerpts. Q&A history persisted to qa-history.json. Integration test verified: architecture question returned 2 citations with 0.85 confidence, citations include all required fields (documentId, documentTitle, chunkIndex, excerpt), history persistence works correctly across multiple questions. UI displays answers with formatted citations in App.tsx.",
+      "testedAt": "2026-06-26T01:15:00Z"
+    },
+    {
+      "id": "structured-logging",
+      "name": "Structured JSON Logging",
+      "description": "All services emit structured JSON log entries with timestamp, level, service tag, message, and optional data payload.",
+      "status": "pass",
+      "evidence": "Completed full structured-logging implementation: logger.ts provides LogLevel enum, LogEntry interface, Logger class with shouldLog/emit/forService, and singleton export. All 5 services use logger.forService(): PersistenceService (init, file r/w ops), DocumentService (import, delete with remainingCount, updateDocument with fields list, content retrieval), IndexingService (single/bulk indexing with throughput), QaService (question + answer with confidence/duration). ipc-handlers.ts now logs every channel invocation (INFO for mutations: documents:import, documents:delete, indexing:start, qa:ask; DEBUG for reads: documents:list, documents:get, documents:get-content, indexing:status, indexing:chunks, qa:history) plus startup registration log listing all 12 channels. Log output verified via esbuild smoke test: all 4 levels emit single-line JSON with timestamp, level, service, message, data fields. npm run check passes with 0 errors.",
+      "testedAt": "2026-06-26T04:32:39.000Z"
+    },
+    {
+      "id": "conversation-history",
+      "name": "Conversation History",
+      "description": "Chat-style display of Q&A history with expandable citations, confidence indicators, timestamps, and feedback buttons",
+      "status": "pass",
+      "evidence": "Implemented ConversationHistory component with: user questions as purple right-aligned bubbles, assistant answers as dark left-aligned bubbles, color-coded confidence indicators (green ≥70%/yellow ≥40%/red otherwise), expandable citations per answer showing document title, chunk index, excerpt, and per-citation confidence scores, timestamps on each exchange. History loaded on mount from qa-history.json via qa:history IPC. Clear history with two-click confirmation dialog via new qa:clear-history IPC channel (added to types.ts, ipc-handlers.ts, preload.ts, types.d.ts). History view auto-shown after asking a question. Header 'History (N)' button toggles view. TypeScript compiles without errors.",
+      "testedAt": "2026-06-26T00:00:00Z"
+    },
+    {
+      "id": "feedback-collection",
+      "name": "Feedback Collection",
+      "description": "Users can rate Q&A responses as positive/negative. Feedback persists across sessions.",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "clean-state-reset",
+      "name": "Clean State Reset",
+      "description": "Application supports resetting all data to clean state. Clears documents, chunks, Q&A history, and feedback.",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "persistence",
+      "name": "Full Persistence",
+      "description": "All data (documents, chunks, Q&A history, feedback) persists across application restarts.",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "status-bar",
+      "name": "Status Bar",
+      "description": "Real-time display of index status, document count, indexed count, and last activity timestamp.",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "benchmark-scripts",
+      "name": "Benchmark Scripts",
+      "description": "Performance benchmark suite measuring import throughput, indexing speed, query latency, and citation accuracy.",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "cleanup-scanner",
+      "name": "Cleanup Scanner",
+      "description": "Script that checks for stale artifacts: orphaned content files, dangling chunks, inconsistent metadata.",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "full-harness",
+      "name": "Complete Harness",
+      "description": "All harness files present: AGENTS.md, CLAUDE.md, feature_list.json, init.sh, session-handoff.md, clean-state-checklist.md, evaluator-rubric.md, quality-document.md, docs/",
+      "status": "not-started",
+      "evidence": null,
+      "testedAt": null
+    }
+  ]
+}
