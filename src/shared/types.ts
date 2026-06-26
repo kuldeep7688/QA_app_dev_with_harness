@@ -70,6 +70,18 @@ export const IPC_CHANNELS = {
   // App status
   GET_STATUS: 'app:status',
 
+  // Feedback
+  SUBMIT_FEEDBACK: 'feedback:submit',
+  LIST_FEEDBACK: 'feedback:list',
+
   // Dialog
   SHOW_OPEN_DIALOG: 'dialog:show-open',
 } as const;
+
+export interface FeedbackEntry {
+  id: string;
+  responseTimestamp: string;
+  question: string;
+  rating: 'positive' | 'negative';
+  submittedAt: string;
+}

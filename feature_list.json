@@ -110,9 +110,9 @@
       "id": "feedback-collection",
       "name": "Feedback Collection",
       "description": "Users can rate Q&A responses as positive/negative. Feedback persists across sessions.",
-      "status": "not-started",
-      "evidence": null,
-      "testedAt": null
+      "status": "pass",
+      "evidence": "Implemented FeedbackEntry type, feedback:submit/feedback:list IPC channels, submitFeedback/getFeedback in QaService with persistence to feedback.json. Preload exposes window.knowledgeBase.feedback.submit/list. ConversationHistory shows thumbs up/down buttons on each assistant answer bubble; clicking submits feedback and disables further clicks. TypeScript compiles cleanly, Vite builds without errors.",
+      "testedAt": "2026-06-26T12:00:00Z"
     },
     {
       "id": "clean-state-reset",

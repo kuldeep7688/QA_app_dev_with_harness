@@ -49,6 +49,7 @@ window.knowledgeBase = {
   documents: { list, import, get, getContent, delete },
   indexing:   { start, status, chunks },
   qa:         { ask, history },
+  feedback:   { submit, list },
 }
 ```
 

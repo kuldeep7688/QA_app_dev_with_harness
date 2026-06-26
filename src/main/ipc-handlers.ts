@@ -75,6 +75,17 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
     return qaService.clearHistory();
   });
 
+  // Feedback
+  ipcMain.handle(IPC_CHANNELS.SUBMIT_FEEDBACK, async (_event, responseTimestamp: string, question: string, rating: 'positive' | 'negative') => {
+    log.info('IPC received', { channel: IPC_CHANNELS.SUBMIT_FEEDBACK, rating, question: question.substring(0, 100) });
+    return qaService.submitFeedback(responseTimestamp, question, rating);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.LIST_FEEDBACK, async () => {
+    log.debug('IPC received', { channel: IPC_CHANNELS.LIST_FEEDBACK });
+    return qaService.getFeedback();
+  });
+
   // Dialog
   ipcMain.handle(IPC_CHANNELS.SHOW_OPEN_DIALOG, async (event) => {
     log.debug('SHOW_OPEN_DIALOG handler called');

@@ -15,6 +15,8 @@ const IPC_CHANNELS = {
   ASK_QUESTION: 'qa:ask',
   GET_HISTORY: 'qa:history',
   CLEAR_HISTORY: 'qa:clear-history',
+  SUBMIT_FEEDBACK: 'feedback:submit',
+  LIST_FEEDBACK: 'feedback:list',
   GET_STATUS: 'app:status',
   SHOW_OPEN_DIALOG: 'dialog:show-open',
 } as const;
@@ -44,6 +46,11 @@ const api = {
     ask: (question: string) => ipcRenderer.invoke(IPC_CHANNELS.ASK_QUESTION, question),
     history: () => ipcRenderer.invoke(IPC_CHANNELS.GET_HISTORY),
     clearHistory: () => ipcRenderer.invoke(IPC_CHANNELS.CLEAR_HISTORY),
+  },
+  feedback: {
+    submit: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') =>
+      ipcRenderer.invoke(IPC_CHANNELS.SUBMIT_FEEDBACK, responseTimestamp, question, rating),
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_FEEDBACK),
   },
 };
 

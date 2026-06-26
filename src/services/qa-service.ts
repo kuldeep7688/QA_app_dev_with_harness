@@ -1,4 +1,4 @@
-import { QAResponse, QAHistory, Citation } from '../shared/types';
+import { QAResponse, QAHistory, Citation, FeedbackEntry } from '../shared/types';
 import { PersistenceService } from './persistence-service';
 import { IndexingService } from './indexing-service';
 import { logger } from './logger';
@@ -6,6 +6,7 @@ import { logger } from './logger';
 const log = logger.forService('QaService');
 
 const QA_HISTORY_FILE = 'qa-history.json';
+const FEEDBACK_FILE = 'feedback.json';
 
 /** Mock Q&A patterns keyed to document content keywords. */
 const MOCK_PATTERNS: Array<{
@@ -156,6 +157,36 @@ export class QaService {
     }
 
     return 'No relevant documents have been indexed yet. Please import and index documents before asking questions.';
+  }
+
+  /** Submit feedback for a Q&A response. */
+  submitFeedback(responseTimestamp: string, question: string, rating: 'positive' | 'negative'): FeedbackEntry {
+    const entry: FeedbackEntry = {
+      id: crypto.randomUUID(),
+      responseTimestamp,
+      question,
+      rating,
+      submittedAt: new Date().toISOString(),
+    };
+
+    const feedback = this.getFeedback();
+    feedback.push(entry);
+    this.persistence.writeJson(FEEDBACK_FILE, feedback);
+
+    log.info('Feedback submitted', {
+      feedbackId: entry.id,
+      rating,
+      question: question.substring(0, 100),
+    });
+
+    return entry;
+  }
+
+  /** Get all feedback entries. */
+  getFeedback(): FeedbackEntry[] {
+    const feedback = this.persistence.readJson<FeedbackEntry[]>(FEEDBACK_FILE) ?? [];
+    log.debug('Retrieved feedback entries', { entryCount: feedback.length });
+    return feedback;
   }
 
   private saveToHistory(question: string, response: QAResponse): void {

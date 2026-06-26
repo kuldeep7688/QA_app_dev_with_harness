@@ -1069,7 +1069,78 @@ agent-progress.md                                 - This entry
 
 ### Status Summary
 
-- **Features Complete:** 13/20
-- **Features Remaining:** 7 (feedback-collection, clean-state-reset, persistence, status-bar, benchmark-scripts, cleanup-scanner, full-harness)
+- **Features Complete:** 14/20
+- **Features Remaining:** 6 (clean-state-reset, persistence, status-bar, benchmark-scripts, cleanup-scanner, full-harness)
 - **Build Health:** ✅ Green
-- **Next Feature:** feedback-collection
+- **Next Feature:** clean-state-reset
+
+---
+
+## Entry 08: Feedback Collection Feature (2026-06-26)
+
+**Feature:** feedback-collection  
+**Status:** ✅ PASS  
+**Duration:** ~15 minutes
+
+### What Was Implemented
+
+Thumbs up/down feedback buttons on each Q&A response in ConversationHistory. Feedback persists across sessions via `feedback.json`.
+
+### Changes Made
+
+1. **`src/shared/types.ts`** — Added `FeedbackEntry` interface (id, responseTimestamp, question, rating, submittedAt) and `SUBMIT_FEEDBACK`/`LIST_FEEDBACK` IPC channel constants
+
+2. **`src/services/qa-service.ts`** — Added `submitFeedback()` method (creates FeedbackEntry, appends to feedback.json, logs at INFO) and `getFeedback()` method (reads from feedback.json, logs at DEBUG)
+
+3. **`src/main/ipc-handlers.ts`** — Registered handlers for `feedback:submit` (INFO log, calls qaService.submitFeedback) and `feedback:list` (DEBUG log, calls qaService.getFeedback)
+
+4. **`src/preload/preload.ts`** — Added `feedback` namespace: `submit(responseTimestamp, question, rating)` and `list()`
+
+5. **`src/renderer/types.d.ts`** — Added `feedback: { submit, list }` to window type declaration
+
+6. **`src/renderer/shared-types.ts`** — Re-exported `FeedbackEntry` type
+
+7. **`src/renderer/App.tsx`** — Added `handleSubmitFeedback` callback that calls `window.knowledgeBase.feedback.submit()`; passes it as `onSubmitFeedback` prop to ConversationHistory
+
+8. **`src/renderer/components/ConversationHistory.tsx`** — Added thumbs up/down buttons on each assistant answer bubble:
+   - "👍 Helpful" / "👎 Not helpful" buttons
+   - After click: buttons disable, show "👍 Thanks!" / "👎 Noted"
+   - Styled with matching dark theme: green tint for positive, red tint for negative
+
+### Verification
+
+```
+✅ npm run check  — 0 TypeScript errors
+✅ npm run build  — 33 modules, 159 kB
+✅ Cleanup scanner — CLEAN (0 issues)
+✅ feature_list.json → feedback-collection: "pass"
+```
+
+### Key Learnings
+
+1. **IPC Protocol Consistency:** Followed the established pattern: type → service method → IPC handler → preload bridge → renderer type → UI. Ensures no layer boundary violations.
+2. **Feedback UX:** Disabling buttons after first click prevents duplicate submissions without requiring complex state management. The "Thanks!"/"Noted" feedback gives immediate confirmation.
+3. **Existing Documentation Alignment:** The ARCHITECTURE.md already had `feedback:submit`/`feedback:list` channels, `QaService.submitFeedback/getFeedback`, and `feedback` namespace in the preload code block — the actual code now matches the documented design.
+
+### Files Modified
+
+```
+src/shared/types.ts                    - FeedbackEntry, SUBMIT_FEEDBACK, LIST_FEEDBACK
+src/services/qa-service.ts             - submitFeedback(), getFeedback()
+src/main/ipc-handlers.ts               - feedback:submit, feedback:list handlers
+src/preload/preload.ts                 - feedback namespace
+src/renderer/types.d.ts                - feedback in window type
+src/renderer/shared-types.ts           - re-export FeedbackEntry
+src/renderer/App.tsx                   - handleSubmitFeedback callback
+src/renderer/components/ConversationHistory.tsx - thumbs up/down buttons
+feature_list.json                      - feedback-collection → pass
+session-handoff.md                     - Updated
+agent-progress.md                      - This entry
+```
+
+### Status Summary
+
+- **Features Complete:** 14/20
+- **Features Remaining:** 6 (clean-state-reset, persistence, status-bar, benchmark-scripts, cleanup-scanner, full-harness)
+- **Build Health:** ✅ Green
+- **Next Feature:** clean-state-reset

@@ -4,6 +4,7 @@ import { QAHistory, Citation } from '../shared-types';
 interface ConversationHistoryProps {
   history: QAHistory[];
   onClearHistory: () => void;
+  onSubmitFeedback: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') => void;
 }
 
 /** Format ISO timestamp to a readable local time string. */
@@ -102,8 +103,9 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
   );
 }
 
-export function ConversationHistory({ history, onClearHistory }: ConversationHistoryProps) {
+export function ConversationHistory({ history, onClearHistory, onSubmitFeedback }: ConversationHistoryProps) {
   const [confirmClear, setConfirmClear] = useState(false);
+  const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set());
 
   const handleClearClick = () => {
     if (confirmClear) {
@@ -250,6 +252,50 @@ export function ConversationHistory({ history, onClearHistory }: ConversationHis
 
                     {/* Expandable citations */}
                     <CitationsBlock citations={entry.response.citations} />
+
+                    {/* Feedback buttons */}
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={() => {
+                          if (feedbackGiven.has(entry.response.timestamp)) return;
+                          setFeedbackGiven(prev => new Set([...prev, entry.response.timestamp]));
+                          onSubmitFeedback(entry.response.timestamp, entry.question, 'positive');
+                        }}
+                        disabled={feedbackGiven.has(entry.response.timestamp)}
+                        style={{
+                          background: feedbackGiven.has(entry.response.timestamp) ? '#1a3a2a' : '#2a2a4e',
+                          color: feedbackGiven.has(entry.response.timestamp) ? '#66ff99' : '#8888bb',
+                          border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? '#33aa55' : '#3a3a6e'}`,
+                          borderRadius: '4px',
+                          cursor: feedbackGiven.has(entry.response.timestamp) ? 'default' : 'pointer',
+                          padding: '3px 10px',
+                          fontSize: '12px',
+                          lineHeight: '1.4',
+                        }}
+                      >
+                        👍 {feedbackGiven.has(entry.response.timestamp) ? 'Thanks!' : 'Helpful'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (feedbackGiven.has(entry.response.timestamp)) return;
+                          setFeedbackGiven(prev => new Set([...prev, entry.response.timestamp]));
+                          onSubmitFeedback(entry.response.timestamp, entry.question, 'negative');
+                        }}
+                        disabled={feedbackGiven.has(entry.response.timestamp)}
+                        style={{
+                          background: feedbackGiven.has(entry.response.timestamp) ? '#3a1a1a' : '#2a2a4e',
+                          color: feedbackGiven.has(entry.response.timestamp) ? '#ff6666' : '#8888bb',
+                          border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? '#aa3333' : '#3a3a6e'}`,
+                          borderRadius: '4px',
+                          cursor: feedbackGiven.has(entry.response.timestamp) ? 'default' : 'pointer',
+                          padding: '3px 10px',
+                          fontSize: '12px',
+                          lineHeight: '1.4',
+                        }}
+                      >
+                        👎 {feedbackGiven.has(entry.response.timestamp) ? 'Noted' : 'Not helpful'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

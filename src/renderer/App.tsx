@@ -108,6 +108,18 @@ export function App() {
     }
   }, []);
 
+  const handleSubmitFeedback = useCallback(async (
+    responseTimestamp: string,
+    question: string,
+    rating: 'positive' | 'negative',
+  ) => {
+    try {
+      await window.knowledgeBase.feedback.submit(responseTimestamp, question, rating);
+    } catch (err) {
+      console.error('Feedback submission failed:', err);
+    }
+  }, []);
+
   const handleShowHistory = useCallback(() => {
     setShowHistory(true);
     setShowImport(false);
@@ -206,7 +218,7 @@ export function App() {
             {showImport ? (
               <ImportPanel onImport={handleImport} />
             ) : showHistory ? (
-              <ConversationHistory history={history} onClearHistory={handleClearHistory} />
+              <ConversationHistory history={history} onClearHistory={handleClearHistory} onSubmitFeedback={handleSubmitFeedback} />
             ) : selectedDoc ? (
               <DocumentDetail
                 document={selectedDoc}

@@ -21,6 +21,10 @@ declare global {
         history: () => Promise<import('../shared/types').QAHistory[]>;
         clearHistory: () => Promise<void>;
       };
+      feedback: {
+        submit: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') => Promise<import('../shared/types').FeedbackEntry>;
+        list: () => Promise<import('../shared/types').FeedbackEntry[]>;
+      };
       dialog: {
         showOpenDialog: () => Promise<string | null>;
       };
