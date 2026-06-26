@@ -28,6 +28,9 @@ declare global {
       dialog: {
         showOpenDialog: () => Promise<string | null>;
       };
+      app: {
+        resetData: () => Promise<void>;
+      };
     };
   }
 }
