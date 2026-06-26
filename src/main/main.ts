@@ -76,6 +76,7 @@ function initializeServices() {
     documentService,
     indexingService,
     qaService,
+    persistenceService: persistence,
   });
 }
 
