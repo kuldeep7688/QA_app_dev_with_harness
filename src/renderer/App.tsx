@@ -5,6 +5,7 @@ import { DocumentDetail } from './components/DocumentDetail';
 import { ImportPanel } from './components/ImportPanel';
 import { StatusBar } from './components/StatusBar';
 import { ConversationHistory } from './components/ConversationHistory';
+import { ResetDialog } from './components/ResetDialog';
 import { Document, AppStatus, QAHistory } from './shared-types';
 
 export function App() {
@@ -19,6 +20,7 @@ export function App() {
   const [history, setHistory] = useState<QAHistory[]>([]);
   const [showImport, setShowImport] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   // Verify preload loaded
   useEffect(() => {
@@ -125,6 +127,26 @@ export function App() {
     setShowImport(false);
   }, []);
 
+  const handleReset = useCallback(async () => {
+    try {
+      await window.knowledgeBase.app.resetData();
+      setDocuments([]);
+      setHistory([]);
+      setSelectedDoc(null);
+      setShowHistory(false);
+      setShowImport(false);
+      setAppStatus({
+        documentsLoaded: 0,
+        indexStatus: 'idle',
+        lastActivity: '',
+        indexedCount: 0,
+      });
+      setShowResetDialog(false);
+    } catch (err) {
+      console.error('Reset failed:', err);
+    }
+  }, []);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <header style={{
@@ -152,6 +174,20 @@ export function App() {
             History {history.length > 0 ? `(${history.length})` : ''}
           </button>
           <button
+            onClick={() => setShowResetDialog(true)}
+            style={{
+              padding: '6px 14px',
+              background: '#8b0000',
+              color: '#fff',
+              border: '1px solid #a00000',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            Reset
+          </button>
+          <button
             onClick={refreshDocuments}
             style={{
               padding: '6px 14px',
@@ -167,6 +203,13 @@ export function App() {
           </button>
         </div>
       </header>
+
+      {showResetDialog && (
+        <ResetDialog
+          onConfirm={handleReset}
+          onCancel={() => setShowResetDialog(false)}
+        />
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left panel: Document list */}
