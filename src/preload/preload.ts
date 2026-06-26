@@ -19,6 +19,7 @@ const IPC_CHANNELS = {
   LIST_FEEDBACK: 'feedback:list',
   GET_STATUS: 'app:status',
   SHOW_OPEN_DIALOG: 'dialog:show-open',
+  RESET_DATA: 'app:reset',
 } as const;
 
 console.log('[Preload] IPC_CHANNELS:', IPC_CHANNELS);
@@ -51,6 +52,9 @@ const api = {
     submit: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') =>
       ipcRenderer.invoke(IPC_CHANNELS.SUBMIT_FEEDBACK, responseTimestamp, question, rating),
     list: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_FEEDBACK),
+  },
+  app: {
+    resetData: () => ipcRenderer.invoke(IPC_CHANNELS.RESET_DATA),
   },
 };
 
