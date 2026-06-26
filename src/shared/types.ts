@@ -76,6 +76,9 @@ export const IPC_CHANNELS = {
 
   // Dialog
   SHOW_OPEN_DIALOG: 'dialog:show-open',
+
+  // App
+  RESET_DATA: 'app:reset',
 } as const;
 
 export interface FeedbackEntry {
