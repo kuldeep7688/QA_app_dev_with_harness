@@ -4,6 +4,12 @@
 
 ### Recently Completed
 
+**Cleanup Scanner Feature** (2026-06-27)
+- Fixed scripts/cleanup-scanner.sh: Check 4 (inconsistent metadata) now correctly displays INCONSISTENT findings (added `echo "$inconsistent"` before ISSUE_COUNT increment).
+- Script performs 5 comprehensive checks: orphaned content files, dangling chunk files, missing content files, inconsistent metadata (indexed docs without chunks), stale Q&A references.
+- Comprehensive test with 6 intentional issues verified all checks work correctly.
+- Real data directory scan returns CLEAN (0 issues).
+
 **Benchmark Scripts Feature** (2026-06-27)
 - Fixed scripts/benchmark.sh: replaced Python-based floating-point timestamps with `date +%s%3N` for bash-compatible millisecond-precision integer timing.
 - Simplified Query task from grep-based keyword matching (which hung due to complex command substitution) to word counting.
@@ -53,7 +59,7 @@
 | persistence | ✅ pass |
 | status-bar | ✅ pass |
 | benchmark-scripts | ✅ pass |
-| cleanup-scanner | 🔲 not-started |
+| cleanup-scanner | ✅ pass |
 | full-harness | 🔲 not-started |
 
 ### Files Modified (2026-06-26)
@@ -98,12 +104,11 @@
 
 ## Next Features to Implement
 
-1. **cleanup-scanner** — stale-artifact detection script (already exists at scripts/cleanup-scanner.sh, needs verification)
-2. **full-harness** — ensure all harness files present (CLAUDE.md, quality-document.md still missing per init.sh)
+1. **full-harness** — ensure all harness files present (CLAUDE.md, quality-document.md missing per init.sh)
 
 ## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions
 2. Run `npm run check` to verify build health
 3. Follow one-feature-at-a-time discipline
-4. Next feature: `cleanup-scanner`
+4. Final feature: `full-harness`

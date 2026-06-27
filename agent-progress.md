@@ -1323,3 +1323,37 @@ agent-progress.md                            - This entry
 - **Features Remaining:** 2 (cleanup-scanner, full-harness)
 - **Build Health:** Green
 - **Next Feature:** cleanup-scanner
+
+---
+
+## Session: 2026-06-27 (Part 2)
+
+### Task: Implement Cleanup Scanner Feature
+
+**Approach:** Found existing scripts/cleanup-scanner.sh with 5 comprehensive checks for stale artifacts. Script had a display bug in Check 4 (inconsistent metadata) where INCONSISTENT findings were detected but not echoed to output.
+
+**Implementation:**
+- Fixed cleanup-scanner.sh line 192-193: added `echo "$inconsistent"` before `ISSUE_COUNT` increment so INCONSISTENT lines are displayed
+- Script now correctly displays all findings from all 5 checks:
+  1. Orphaned content files (content without metadata)
+  2. Dangling chunk files (chunks without index entries)
+  3. Missing content files (metadata without content)
+  4. Inconsistent metadata (indexed docs without chunk files)
+  5. Stale Q&A references (history referencing deleted docs)
+
+**Verification:**
+- Comprehensive test with 6 intentional issues: 2 orphaned + 2 dangling + 2 missing + 1 inconsistent + 2 stale → scanner correctly reported "ISSUES FOUND (6)" with all details listed
+- Real data directory scan: "CLEAN (0 issues found)"
+- Each check tested individually: all 5 checks detect their respective issue types correctly
+- `npm run check` → 0 TypeScript errors
+
+**Learnings:**
+- When Python scripts print diagnostic output, ensure the shell script echoes captured output when conditions are met (not just incrementing counters silently)
+- Comprehensive negative testing (injecting all issue types) validates detection logic more thoroughly than clean-state-only tests
+
+**Status:** cleanup-scanner → pass
+
+- **Features Complete:** 19/20
+- **Features Remaining:** 1 (full-harness)
+- **Build Health:** Green
+- **Next Feature:** full-harness

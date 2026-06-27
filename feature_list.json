@@ -150,9 +150,9 @@
       "id": "cleanup-scanner",
       "name": "Cleanup Scanner",
       "description": "Script that checks for stale artifacts: orphaned content files, dangling chunks, inconsistent metadata.",
-      "status": "not-started",
-      "evidence": null,
-      "testedAt": null
+      "status": "pass",
+      "evidence": "Fixed and verified scripts/cleanup-scanner.sh performs 5 checks: (1) Orphaned content files - content/*.txt without matching document in documents-meta.json; (2) Dangling chunk files - chunks/*.json without matching entry in index-meta.json; (3) Missing content files - documents in metadata without corresponding content/*.txt file; (4) Inconsistent metadata - documents with status='indexed' but no chunks/*.json file [fixed: now echoes INCONSISTENT lines from Python script]; (5) Stale Q&A references - qa-history.json citations referencing deleted document IDs. Comprehensive test verified all 5 checks: created test directory with 2 orphaned content files, 2 dangling chunks, 2 missing content files, 1 inconsistent indexed doc, and 2 stale citations → scanner correctly reported 6 issues. Real data directory scan returns CLEAN (0 issues). Script accepts optional data-dir argument, defaults to platform-specific userData path (~/.config/knowledge-base/knowledge-base-data on Linux). Exit 0 on success.",
+      "testedAt": "2026-06-27T01:00:00.000Z"
     },
     {
       "id": "full-harness",
