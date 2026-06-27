@@ -4,6 +4,11 @@
 
 ### Recently Completed
 
+**Full Persistence Feature** (2026-06-26)
+- No production code changes needed -- all services already read JSON files on demand.
+- Added `test/persistence.test.ts`: 2-session integration test (Session 1 writes; Session 2 re-instantiates services against same dataDir and verifies documents, chunks, indexStatus, Q&A history, feedback all survive).
+- 18/18 assertions pass. `npm run check` clean.
+
 **Clean State Reset Feature** (2026-06-26)
 - Added `RESET_DATA: 'app:reset'` to IPC_CHANNELS in `src/shared/types.ts`
 - Added `PersistenceService.resetAll()` — removes data dir with `fs.rmSync`, recreates via `ensureDirectories()`, logs at WARN
@@ -34,7 +39,7 @@
 | conversation-history | ✅ pass |
 | feedback-collection | ✅ pass |
 | clean-state-reset | ✅ pass |
-| persistence | 🔲 not-started |
+| persistence | ✅ pass |
 | status-bar | 🔲 not-started |
 | benchmark-scripts | 🔲 not-started |
 | cleanup-scanner | 🔲 not-started |
@@ -82,12 +87,14 @@
 
 ## Next Features to Implement
 
-1. **persistence** — verify all data persists across restarts (documents, chunks, history, feedback)
-2. **status-bar** — already partially implemented; verify all fields render
+1. **status-bar** — already partially implemented; verify all fields render
+2. **benchmark-scripts** — performance suite (import/index/query/verify)
+3. **cleanup-scanner** — stale-artifact detection script
+4. **full-harness** — ensure all harness files present (CLAUDE.md, quality-document.md still missing per init.sh)
 
 ## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions
 2. Run `npm run check` to verify build health
 3. Follow one-feature-at-a-time discipline
-4. Next feature: `persistence`
+4. Next feature: `status-bar`

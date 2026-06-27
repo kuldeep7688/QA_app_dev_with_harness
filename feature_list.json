@@ -126,9 +126,9 @@
       "id": "persistence",
       "name": "Full Persistence",
       "description": "All data (documents, chunks, Q&A history, feedback) persists across application restarts.",
-      "status": "not-started",
-      "evidence": null,
-      "testedAt": null
+      "status": "pass",
+      "evidence": "All four data categories survive a simulated restart. Verified via test/persistence.test.ts: Session 1 imports a document (DocumentService), indexes it (IndexingService), asks a question (QaService) producing citations, and submits positive feedback. Session 2 re-instantiates PersistenceService/DocumentService/IndexingService/QaService against the same dataDir and confirms (a) documents-meta.json restores doc with status='indexed' and wordCount preserved, (b) index-meta.json + chunks/<id>.json restore chunks via getAllChunks(), (c) getStatus() returns indexStatus='ready' indexedCount=1, (d) qa-history.json restores 1 entry with citations intact, (e) feedback.json restores 1 entry rating='positive'. On-disk artifacts verified: documents-meta.json, qa-history.json, feedback.json, index-meta.json, chunks/, content/. 18/18 assertions pass; npm run check clean.",
+      "testedAt": "2026-06-26T21:54:00.000Z"
     },
     {
       "id": "status-bar",

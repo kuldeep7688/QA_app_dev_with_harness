@@ -1232,3 +1232,32 @@ agent-progress.md                            - This entry
 - **Features Remaining:** 5 (persistence, status-bar, benchmark-scripts, cleanup-scanner, full-harness)
 - **Build Health:** ✅ Green
 - **Next Feature:** persistence
+
+---
+
+## Session: 2026-06-26 (continued)
+
+### Task: Verify Full Persistence Feature
+
+**Approach:** All services are file-backed and read on demand from JSON files via PersistenceService -- persistence was implicit. Validated end-to-end by writing an integration test that simulates an app restart (re-instantiating all services against the same dataDir).
+
+**Implementation:**
+- Added `test/persistence.test.ts` (no production code changes needed -- persistence is already correct by construction).
+- Session 1: import doc -> IndexingService.startIndexing -> QaService.ask -> QaService.submitFeedback.
+- Session 2: new PersistenceService/DocumentService/IndexingService/QaService against same dataDir; assert documents, chunks, indexStatus='ready', Q&A history entry with citations, feedback rating.
+
+**Verification:**
+- `npx tsx test/persistence.test.ts` -> 18/18 PASS.
+- `npm run check` -> 0 TypeScript errors.
+- On-disk artifacts confirmed: documents-meta.json, qa-history.json, feedback.json, index-meta.json, chunks/, content/.
+
+**Learnings:**
+- DocumentService, IndexingService, and QaService hold no in-memory cache; every read goes through PersistenceService.readJson/readText, so restart-survival is structural rather than dependent on init logic.
+- `IndexingService.getStatus()` correctly reports `ready` after restart because it derives state from `index-meta.json` keys vs documents-meta length.
+
+**Status:** persistence -> pass.
+
+- **Features Complete:** 16/20
+- **Features Remaining:** 4 (status-bar, benchmark-scripts, cleanup-scanner, full-harness)
+- **Build Health:** Green
+- **Next Feature:** status-bar
