@@ -3,7 +3,7 @@
 # Run this after cloning or when resuming work.
 set -euo pipefail
 
-echo "=== Project 06 Capstone Init ==="
+echo "=== QA App Init ==="
 echo ""
 
 echo "[1/5] Installing dependencies..."

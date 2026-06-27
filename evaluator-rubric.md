@@ -1,8 +1,8 @@
-# Evaluator Rubric -- Project 06 Capstone
+# Evaluator Rubric
 
 ## Overall Assessment
 
-**Project**: Runtime Observability and Debugging (Capstone)
+**Project**: Electron based QA App
 **Evaluator**: Automated + Manual Review
 **Date**: 2026-03-30
 
@@ -63,7 +63,7 @@
 
 ### Summary
 
-This capstone project demonstrates a complete Electron knowledge base application
+This project demonstrates a complete Electron knowledge base application
 with maximum harness quality. All features from Projects 01-05 are integrated and
 enhanced with structured logging, feedback collection, clean state management,
 and performance benchmarking. The harness is comprehensive with 9 top-level files,
