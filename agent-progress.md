@@ -1261,3 +1261,32 @@ agent-progress.md                            - This entry
 - **Features Remaining:** 4 (status-bar, benchmark-scripts, cleanup-scanner, full-harness)
 - **Build Health:** Green
 - **Next Feature:** status-bar
+
+---
+
+## Session: 2026-06-26 (continued)
+
+### Task: Verify Status Bar Feature
+
+**Approach:** StatusBar component was already implemented during prior work on indexing-status-ui feature. Validated that it displays all required fields (index status, document count, indexed count, last activity timestamp) correctly at different workflow stages.
+
+**Implementation:**
+- No production code changes needed -- StatusBar.tsx already complete.
+- Added `test/status-bar.test.ts` to verify IndexingService.getStatus() returns correct AppStatus across 5 workflow stages.
+
+**Verification:**
+- Test stages: (1) no documents → idle, (2) 3 docs imported/0 indexed → idle, (3) 1/3 indexed → indexing, (4) 2/3 indexed → indexing, (5) 3/3 indexed → ready.
+- All fields verified: documentsLoaded, indexStatus, indexedCount, lastActivity (ISO timestamp, within 1 second of current time).
+- `npx tsx test/status-bar.test.ts` → 19/19 PASS.
+- `npm run check` → 0 TypeScript errors.
+
+**Learnings:**
+- StatusBar was already feature-complete from indexing-status-ui work -- it displays the color-coded dot, status label, "X of Y indexed" format, and formatted timestamp.
+- App.tsx calls `refreshDocuments()` after import/delete/index operations, which fetches fresh status via `indexing.status()` IPC and updates `appStatus` state.
+
+**Status:** status-bar → pass.
+
+- **Features Complete:** 17/20
+- **Features Remaining:** 3 (benchmark-scripts, cleanup-scanner, full-harness)
+- **Build Health:** Green
+- **Next Feature:** benchmark-scripts

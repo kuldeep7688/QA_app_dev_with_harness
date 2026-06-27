@@ -4,6 +4,11 @@
 
 ### Recently Completed
 
+**Status Bar Feature** (2026-06-26)
+- No production code changes needed -- StatusBar.tsx already complete from indexing-status-ui work.
+- Added `test/status-bar.test.ts`: 5-stage integration test verifying IndexingService.getStatus() returns correct AppStatus (documentsLoaded, indexStatus, indexedCount, lastActivity) at different workflow stages (no docs, 3 imported/0 indexed, partial indexed, all indexed).
+- 19/19 assertions pass. `npm run check` clean.
+
 **Full Persistence Feature** (2026-06-26)
 - No production code changes needed -- all services already read JSON files on demand.
 - Added `test/persistence.test.ts`: 2-session integration test (Session 1 writes; Session 2 re-instantiates services against same dataDir and verifies documents, chunks, indexStatus, Q&A history, feedback all survive).
@@ -40,7 +45,7 @@
 | feedback-collection | ✅ pass |
 | clean-state-reset | ✅ pass |
 | persistence | ✅ pass |
-| status-bar | 🔲 not-started |
+| status-bar | ✅ pass |
 | benchmark-scripts | 🔲 not-started |
 | cleanup-scanner | 🔲 not-started |
 | full-harness | 🔲 not-started |
@@ -87,14 +92,13 @@
 
 ## Next Features to Implement
 
-1. **status-bar** — already partially implemented; verify all fields render
-2. **benchmark-scripts** — performance suite (import/index/query/verify)
-3. **cleanup-scanner** — stale-artifact detection script
-4. **full-harness** — ensure all harness files present (CLAUDE.md, quality-document.md still missing per init.sh)
+1. **benchmark-scripts** — performance suite (import/index/query/verify)
+2. **cleanup-scanner** — stale-artifact detection script
+3. **full-harness** — ensure all harness files present (CLAUDE.md, quality-document.md still missing per init.sh)
 
 ## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions
 2. Run `npm run check` to verify build health
 3. Follow one-feature-at-a-time discipline
-4. Next feature: `status-bar`
+4. Next feature: `benchmark-scripts`
