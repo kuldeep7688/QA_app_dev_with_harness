@@ -202,3 +202,120 @@ Log levels:
 - **INFO**: Significant events (import, indexing, Q&A, feedback, reset)
 - **WARN**: Missing but non-critical data (skipped documents, content not found)
 - **ERROR**: Failures (file not found, parse errors)
+
+---
+
+## Planned: SQLite Hybrid Retrieval (in-flight features)
+
+The current retrieval path is a keyword-overlap scan over JSON chunk files. The next architectural milestone replaces this with an embedded SQLite index supporting both BM25 keyword search and vector (cosine) search, fused at query time.
+
+### Target Stack
+
+| Concern | Component |
+|---|---|
+| Embedded DB | SQLite via `better-sqlite3` (WAL mode, foreign keys on) |
+| Keyword index | SQLite FTS5 with built-in `bm25()` ranking |
+| Vector index | `sqlite-vec` extension (`vec0` virtual table, 384-dim cosine) |
+| Embeddings | `@xenova/transformers` `all-MiniLM-L6-v2` (local, 384-dim) |
+| Fusion | Reciprocal Rank Fusion (RRF, k=60 default) |
+| Native rebuild | `@electron/rebuild` (postinstall) |
+
+### Target Schema (v1)
+
+```sql
+CREATE TABLE documents (id TEXT PRIMARY KEY, title TEXT, filename TEXT,
+                        size INTEGER, imported_at TEXT, status TEXT,
+                        word_count INTEGER, line_count INTEGER, file_type TEXT);
+
+CREATE TABLE chunks (
+  rowid       INTEGER PRIMARY KEY,
+  id          TEXT UNIQUE NOT NULL,
+  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  idx         INTEGER NOT NULL,
+  content     TEXT NOT NULL,
+  char_count  INTEGER, word_count INTEGER,
+  embedded_at TEXT
+);
+CREATE INDEX chunks_doc_idx ON chunks(document_id, idx);
+
+CREATE VIRTUAL TABLE chunks_fts USING fts5(
+  content, content='chunks', content_rowid='rowid',
+  tokenize='porter unicode61'
+);
+-- triggers keep chunks_fts in sync with chunks
+
+CREATE VIRTUAL TABLE chunks_vec USING vec0(embedding float[384]);
+
+CREATE TABLE qa_history (id INTEGER PRIMARY KEY, ts TEXT, question TEXT,
+                         answer TEXT, confidence REAL, citations_json TEXT);
+CREATE TABLE feedback   (id TEXT PRIMARY KEY, response_ts TEXT, question TEXT,
+                         rating TEXT, comment TEXT, submitted_at TEXT);
+CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT);
+```
+
+### Hybrid Retrieval Pipeline
+
+```
+question
+  ├─ embed(question) ────► sqlite-vec KNN top-N ──► [(rowid, vRank)]
+  └─ tokenize(question) ─► FTS5 MATCH + bm25() ───► [(rowid, bRank)]
+                                                       │
+                       Reciprocal Rank Fusion ◄────────┘
+                                       │
+                  dedup by rowid; score = Σ 1/(k + rank)
+                                       │
+                              top-K (default 5)
+                                       │
+                       hydrate chunks + documents
+                                       │
+                  pass as citations to QaService.answer()
+```
+
+Defaults: `N=20` per source, `K=5`, `rrfK=60`, all configurable via `settings.json`.
+
+### New / Changed Layer Map
+
+```
+Services (post-migration)
+  ├─ db.ts                  -- SQLite singleton, loads sqlite-vec, runs migrations
+  ├─ migrations/            -- versioned SQL/TS migrations (schema_meta)
+  ├─ embedding-service.ts   -- MiniLM model loader, embed/embedBatch
+  ├─ retriever.ts           -- pure hybridSearch(query, opts) → fused results
+  ├─ indexing-service.ts    -- chunks → SQLite + chunks_fts (triggers) + chunks_vec
+  ├─ qa-service.ts          -- calls retriever; confidence from fused scores
+  └─ persistence-service.ts -- retained for raw content/<id>.txt files only
+```
+
+### New IPC Channels (planned)
+
+| Channel | Purpose |
+|---|---|
+| `indexing:rebuild-embeddings` | Re-embed all chunks (idempotent UPSERT); emits progress |
+| `indexing:progress` (event) | Streamed batch progress from main → renderer |
+| `qa:retrieve-debug` | Returns BM25, vector, and fused lists (no answer) for inspection |
+| `settings:get` / `settings:set` | Read/write retrieval settings |
+
+### Migration & Backward Compatibility
+
+1. On first launch after upgrade, if `index.db` is missing but legacy JSON files exist, run a one-shot importer in a single transaction.
+2. Legacy `documents-meta.json`, `chunks/*.json`, `qa-history.json`, `feedback.json` are moved (not deleted) into `<dataDir>/legacy/`.
+3. `schema_meta(version)` row drives future migrations.
+4. Re-embedding is decoupled from migration so users can defer it; chunks are usable for BM25 immediately.
+
+### Updated Data Storage Layout
+
+```
+knowledge-base-data/
+  index.db               # SQLite (chunks, FTS, vectors, qa_history, feedback)
+  content/<doc-id>.txt   # raw extracted text (unchanged)
+  documents/<filename>   # original file copies (unchanged)
+  settings.json          # retrieval/UX settings
+  legacy/                # one-time backup of pre-SQLite JSON
+```
+
+### Risk Notes
+
+- `better-sqlite3` native ABI must match Electron's — handled by `@electron/rebuild` in `postinstall` and CI.
+- `sqlite-vec` ships platform binaries via npm; if load fails the app must degrade to BM25-only mode with a visible status flag.
+- MiniLM model adds ~25 MB; default is bundled (no network), with first-run download as an alternative.
+- RRF `k` is data-dependent; default 60 (literature norm) is exposed in settings and tuned via the eval harness.

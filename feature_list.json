@@ -161,6 +161,243 @@
       "status": "pass",
       "evidence": "Created CLAUDE.md (quick reference with all 14 IPC channels, interfaces, data storage layout, common tasks, troubleshooting) and quality-document.md (comprehensive quality assessment with grades across 7 dimensions: Code Quality 18/20, Architecture 19/20, Reliability 20/20, Testing & Observability 19/20, User Experience 18/20, Documentation 18/20, Harness Completeness 5/5, Overall Grade A+ 97/100). init.sh verification now passes all 5 steps: (1) dependencies installed, (2) type checks pass with 0 errors, (3) Vite build completes (34 modules, 161 kB), (4) all 13 harness files present (AGENTS.md, CLAUDE.md, feature_list.json, clean-state-checklist.md, session-handoff.md, evaluator-rubric.md, quality-document.md, docs/ARCHITECTURE.md, docs/PRODUCT.md, docs/RELIABILITY.md, scripts/benchmark.sh, scripts/cleanup-scanner.sh, scripts/dev.js), (5) 3 sample data files verified. Output: 'Init complete. All checks passed.'",
       "testedAt": "2026-06-27T01:30:00Z"
+    },
+    {
+      "id": "sqlite-database",
+      "name": "Embedded SQLite Database",
+      "description": "Embedded SQLite via better-sqlite3 opened at <dataDir>/index.db, WAL mode, foreign keys on. Singleton accessor in src/services/db.ts with logged init events.",
+      "status": "pending",
+      "phase": "A. Foundation",
+      "acceptance": [
+        "better-sqlite3 + @electron/rebuild installed; postinstall rebuild script wired.",
+        "src/services/db.ts opens index.db, sets PRAGMA journal_mode=WAL and foreign_keys=ON.",
+        "Init logs path, SQLite version, WAL state at INFO.",
+        "Unit test opens DB, runs PRAGMA integrity_check, closes cleanly without leaks."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "schema-migrations",
+      "name": "Versioned Schema Migrations",
+      "description": "Migration runner with schema_meta version tracking. 001_init creates documents, chunks, qa_history, feedback tables. Idempotent and transactional.",
+      "status": "pending",
+      "phase": "A. Foundation",
+      "acceptance": [
+        "src/services/migrations/ directory with 001_init.sql (or .ts).",
+        "schema_meta table tracks current version; runner skips applied migrations.",
+        "Each migration runs inside a transaction; failure rolls back.",
+        "Test runs migrations twice on a fresh DB and asserts no error and version row equals latest."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "json-to-sqlite-migration",
+      "name": "Legacy JSON → SQLite Import",
+      "description": "One-shot import on first launch: if index.db missing but legacy JSON files exist, import documents-meta.json, chunks/*.json, qa-history.json, feedback.json into SQLite in a single transaction; move legacy JSON to <dataDir>/legacy/ as backup.",
+      "status": "pending",
+      "phase": "A. Foundation",
+      "acceptance": [
+        "Detects legacy JSON presence and runs once.",
+        "Single transaction import covers documents, chunks, qa_history, feedback.",
+        "Legacy files moved (not deleted) into <dataDir>/legacy/.",
+        "Test seeds JSON fixtures, runs migration, asserts row counts match and legacy/ backup exists."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "fts5-keyword-index",
+      "name": "FTS5 BM25 Keyword Index",
+      "description": "chunks_fts FTS5 virtual table (contentless, porter+unicode61 tokenizer) kept in sync with chunks via INSERT/UPDATE/DELETE triggers. RetrieverService.bm25Search(query, limit) returns [{rowid, score}] using SQLite bm25().",
+      "status": "pending",
+      "phase": "B. Indexing Layer",
+      "acceptance": [
+        "chunks_fts virtual table created with bm25 ranking available.",
+        "Triggers keep FTS in sync on chunk insert/update/delete.",
+        "RetrieverService.bm25Search returns ranked rowids with bm25 scores.",
+        "Unit test on fixture corpus: seeded query returns expected chunk in top-3."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "vector-extension-load",
+      "name": "sqlite-vec Vector Extension",
+      "description": "Load sqlite-vec extension at DB init; create chunks_vec (vec0, embedding float[384]) virtual table. Graceful fallback: if extension fails to load, log ERROR, disable vector mode, keep BM25 working.",
+      "status": "pending",
+      "phase": "B. Indexing Layer",
+      "acceptance": [
+        "sqlite-vec npm dep added and loaded via db.loadExtension().",
+        "vec_version() callable after init.",
+        "chunks_vec virtual table exists with 384-dim float embeddings.",
+        "Simulated load failure: app starts in BM25-only mode with WARN/ERROR log and a status flag exposed to renderer."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "embedding-service",
+      "name": "Local Embedding Service",
+      "description": "src/services/embedding-service.ts using @xenova/transformers all-MiniLM-L6-v2 (384-dim). Lazy model load. embed(text) and embedBatch(texts) with batch size 32. Model load logged once; per-batch timing at DEBUG.",
+      "status": "pending",
+      "phase": "B. Indexing Layer",
+      "acceptance": [
+        "@xenova/transformers installed; MiniLM-L6-v2 bundled or first-run downloaded.",
+        "embed(text) returns Float32Array of length 384.",
+        "cosine(self, self) ≈ 1.0; embedBatch returns N vectors for N inputs.",
+        "Model load happens once; subsequent calls reuse cached pipeline."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "chunk-pipeline-rewrite",
+      "name": "Indexing Writes to SQLite + Vectors",
+      "description": "Replace JSON chunk writes with INSERT INTO chunks in a transaction. After insert, embed batch and insert into chunks_vec keyed on rowid; set embedded_at. getStatus() reads counts from SQLite; fixes broken 'indexing' state.",
+      "status": "pending",
+      "phase": "B. Indexing Layer",
+      "acceptance": [
+        "IndexingService no longer writes chunks/<id>.json; writes go to chunks table in a transaction.",
+        "Embeddings written to chunks_vec for every new chunk; embedded_at populated.",
+        "Importing a doc results in equal row counts in chunks, chunks_fts (verified via MATCH), and chunks_vec (verified via KNN).",
+        "getStatus() returns honest indexing/ready/idle states based on SQLite counts."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "reindex-embeddings",
+      "name": "Rebuild Embeddings Command",
+      "description": "New IPC indexing:rebuild-embeddings re-embeds all chunks (idempotent UPSERT). Streams indexing:progress events to renderer. UI affordance in settings or document detail.",
+      "status": "pending",
+      "phase": "B. Indexing Layer",
+      "acceptance": [
+        "indexing:rebuild-embeddings IPC registered and logged.",
+        "Idempotent: running twice yields the same vector rows.",
+        "Progress events emitted (processed/total) and consumed by renderer.",
+        "Test: delete all rows from chunks_vec, run command, assert all chunks re-embedded with logged throughput."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "hybrid-retriever",
+      "name": "Hybrid Retriever (BM25 + Vector via RRF)",
+      "description": "Pure src/services/retriever.ts with hybridSearch(query, opts). Runs BM25 top-N and vector top-N in parallel; merges via Reciprocal Rank Fusion (k=60 default). Returns [{chunk, fusedScore, bm25Rank?, vectorRank?, sources}]. Modes: hybrid|bm25|vector.",
+      "status": "pending",
+      "phase": "C. Hybrid Retrieval",
+      "acceptance": [
+        "hybridSearch is a pure function over db + embeddingService (no global state).",
+        "Configurable mode, topN, topK, rrfK.",
+        "Deterministic ordering on tie via stable secondary key (chunk rowid).",
+        "Unit tests on fixture corpus assert hybrid precision@5 ≥ max(bm25, vector) on seeded queries and mode flags behave correctly."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "qa-uses-hybrid",
+      "name": "QaService Wired to Hybrid Retriever",
+      "description": "QaService.ask() uses retriever.hybridSearch instead of keyword overlap scan. Citations include bm25Rank and vectorRank. Confidence derived from fused score distribution (top score, gap to 2nd, presence-in-both bonus) — no more hardcoded 0.85/0.30.",
+      "status": "pending",
+      "phase": "C. Hybrid Retrieval",
+      "acceptance": [
+        "QaService no longer calls getAllChunks(); calls retriever.hybridSearch().",
+        "Citation objects carry bm25Rank, vectorRank, sources for debugging.",
+        "Confidence varies across queries and reflects the fused score distribution.",
+        "Integration test: ask question → citations sourced from hybrid path; confidence not constant."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "retrieval-debug-ipc",
+      "name": "Retrieval Debug IPC",
+      "description": "New IPC qa:retrieve-debug returns the three ranked lists (BM25, vector, fused) for a query without invoking the answer step. Used by eval harness and a future 'why this citation?' UI.",
+      "status": "pending",
+      "phase": "C. Hybrid Retrieval",
+      "acceptance": [
+        "qa:retrieve-debug IPC registered, logged at DEBUG, no answer generation.",
+        "Returns three arrays with ranks and scores plus fused result.",
+        "Unit test asserts shape, ordering, and that scores are finite numbers."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "golden-eval-set",
+      "name": "Golden Q&A Eval Set",
+      "description": "test/fixtures/golden-qa.json with ≥10 question / expected-chunk-id pairs over data/sample-documents. Schema validated and committed.",
+      "status": "pending",
+      "phase": "D. Quality Measurement",
+      "acceptance": [
+        "≥10 entries with {question, expectedChunkIds[], notes?}.",
+        "All expectedChunkIds resolvable from current sample-documents after re-indexing.",
+        "JSON schema validated by a small loader/test."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "eval-runner",
+      "name": "Retrieval Eval Runner",
+      "description": "scripts/eval-retrieval.ts runs each golden query through BM25, vector, and hybrid; computes precision@5, MRR, and mean latency. Writes eval-results.json and prints a table to stdout.",
+      "status": "pending",
+      "phase": "D. Quality Measurement",
+      "acceptance": [
+        "Runner exits 0 on success and non-zero on regression vs committed baseline.",
+        "eval-results.json contains per-mode precision@5, MRR, mean latency.",
+        "Hybrid precision@5 ≥ max(bm25, vector) on the seeded set.",
+        "Runner usable locally and from CI."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "eval-in-ci",
+      "name": "Eval Runs in CI",
+      "description": "GitHub Actions workflow runs npm run check, npm test, and npm run eval on PRs. Fails the build if hybrid precision@5 drops below the committed baseline.",
+      "status": "pending",
+      "phase": "D. Quality Measurement",
+      "acceptance": [
+        ".github/workflows/ci.yml present and triggers on PR + main.",
+        "Job runs type check, tests, and eval against committed baseline.",
+        "Baseline regression fails the workflow with a clear message.",
+        "First green run on main is the evidence."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "retrieval-settings",
+      "name": "Retrieval Settings",
+      "description": "<dataDir>/settings.json with retrievalMode, topK, topN, rrfK, embeddingsEnabled. Minimal settings panel in renderer (or Settings button) to edit at runtime.",
+      "status": "pending",
+      "phase": "E. Settings & UX",
+      "acceptance": [
+        "settings.json created with sensible defaults on first launch.",
+        "Settings exposed via IPC and read by retriever per call.",
+        "Changing mode in UI affects the very next qa:ask without restart.",
+        "Invalid values rejected with WARN log and ignored."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "citation-source-badge",
+      "name": "Citation Source Badges",
+      "description": "ConversationHistory citations show small badges indicating retrieval source: 'BM25 #2', 'Vector #1', or 'Hybrid'. Helps users (and future debugging) understand why a citation surfaced.",
+      "status": "pending",
+      "phase": "E. Settings & UX",
+      "acceptance": [
+        "Each citation renders the appropriate badge based on bm25Rank/vectorRank/sources.",
+        "Click-through to source chunk still works.",
+        "Visual evidence (screenshot) attached to feature entry on completion."
+      ],
+      "evidence": null,
+      "testedAt": null
     }
   ]
 }

@@ -103,3 +103,43 @@ A desktop application for managing a personal knowledge base. Users import text 
 - Indexing speed: 100+ chunks per second.
 - Query latency: under 500ms per question.
 - Citation accuracy: top 2 chunks must be relevant.
+
+---
+
+## Planned: Hybrid Retrieval (BM25 + Embeddings)
+
+The next product milestone replaces the current keyword-overlap retriever with a hybrid search engine backed by an embedded SQLite index. This brings the "grounded Q&A" claim in line with reality and turns confidence into a measured quantity rather than a constant.
+
+### What changes for the user
+
+- **Better citations on paraphrased questions.** Semantic vector search catches matches that share meaning but not exact words; BM25 still handles exact-term queries (codes, names, identifiers) better than embeddings alone. Hybrid wins both.
+- **Honest confidence.** Confidence is derived from the fused retrieval score distribution (top score, gap to runner-up, agreement between BM25 and vector). The hardcoded 0.85 / 0.30 values are removed.
+- **Per-citation source badges.** Each citation in the conversation view shows whether it came from BM25, vector, or both — making it obvious why a chunk was surfaced.
+- **Retrieval settings.** A small settings surface lets users pick mode (`hybrid` | `bm25` | `vector`), `topK`, `topN`, and the RRF constant. Sensible defaults; no tuning required.
+- **Rebuild Embeddings command.** A one-click action re-embeds the entire library (idempotent), with progress feedback. Useful when switching embedding models or after a corrupted index.
+
+### What changes under the hood
+
+- Chunks, BM25 index, and vector index all live in a single SQLite file (`index.db`). Q&A history and feedback move there too.
+- Local embeddings via `all-MiniLM-L6-v2` (384-dim). No network calls. ~25 MB bundled.
+- Fusion via Reciprocal Rank Fusion (RRF).
+- A first-launch migration imports existing JSON data into SQLite and preserves the originals in a `legacy/` backup folder.
+
+### Quality measurement (mandatory companion)
+
+A golden Q&A set (`test/fixtures/golden-qa.json`, ≥10 pairs over `data/sample-documents`) plus an eval runner (`scripts/eval-retrieval.ts`) score each mode on precision@5, MRR, and mean latency. CI fails any PR where hybrid precision@5 drops below the committed baseline.
+
+### Acceptance bar for this milestone
+
+- Hybrid precision@5 ≥ max(BM25-only, vector-only) on the seeded eval set.
+- Query latency under 500 ms end-to-end with the bundled embedding model on a typical laptop.
+- Lossless migration from the legacy JSON layout, verified by a round-trip test.
+- App still starts (BM25-only) if the `sqlite-vec` extension fails to load, with a visible status flag.
+
+### What is explicitly out of scope for this slice
+
+- A real LLM behind the answer step (still mock patterns until a later milestone).
+- Streaming token output, query rewriting, cross-encoder rerank, agentic loops — all deferred.
+- PDF / DOCX ingestion — separate milestone.
+
+See `feature_list.json` for the breakdown into 16 individually testable features across phases A (foundation), B (indexing layer), C (hybrid retrieval), D (quality measurement), and E (settings & UX). See `docs/ARCHITECTURE.md` for the schema, pipeline, and IPC additions.
