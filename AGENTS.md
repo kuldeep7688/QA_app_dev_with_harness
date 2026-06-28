@@ -1,4 +1,4 @@
-# AGENTS.md -- Project 03: Multi-Session Continuity with Scope Control
+# AGENTS.md
 
 ## Startup Rules
 

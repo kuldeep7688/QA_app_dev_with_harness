@@ -190,6 +190,7 @@ except:
 " 2>/dev/null || echo "SKIP")
 
   if echo "$inconsistent" | grep -q "INCONSISTENT"; then
+    echo "$inconsistent"
     ISSUE_COUNT=$((ISSUE_COUNT + 1))
   elif echo "$inconsistent" | grep -q "OK"; then
     echo "  OK: All indexed documents have chunk files"
