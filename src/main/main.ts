@@ -5,6 +5,9 @@ import { DocumentService } from '../services/document-service';
 import { QaService } from '../services/qa-service';
 import { IndexingService } from '../services/indexing-service';
 import { PersistenceService } from '../services/persistence-service';
+import { initDatabase } from '../services/db';
+import { runMigrations } from '../services/migrations/runner';
+import { LegacyImporter } from '../services/legacy-importer';
 import { logger } from '../services/logger';
 
 const log = logger.forService('Main');
@@ -66,11 +69,31 @@ function createWindow() {
 }
 
 function initializeServices() {
-  const dataDir = path.join(app.getPath('userData'), 'knowledge-base-data');
+  // Use project directory for data storage (easier for development)
+  // In production, you might want to use app.getPath('userData') instead
+  const dataDir = path.join(__dirname, '../../knowledge-base-data');
   const persistence = new PersistenceService(dataDir);
-  const documentService = new DocumentService(persistence);
-  const indexingService = new IndexingService(persistence);
-  const qaService = new QaService(persistence);
+  
+  // Initialize SQLite database
+  log.info('Initializing database', { dataDir });
+  const db = initDatabase(dataDir);
+  
+  // Run schema migrations
+  log.info('Running schema migrations');
+  runMigrations(db);
+  
+  // Check for legacy JSON import
+  const dbPath = path.join(dataDir, 'index.db');
+  if (LegacyImporter.shouldImport(dataDir, dbPath)) {
+    log.info('Legacy JSON files detected, running one-time import');
+    LegacyImporter.importLegacyData(db, dataDir);
+    log.info('Legacy import completed successfully');
+  }
+  
+  // Initialize services with database instance
+  const documentService = new DocumentService(persistence, db);
+  const indexingService = new IndexingService(persistence, db);
+  const qaService = new QaService(persistence, db);
 
   registerIpcHandlers(ipcMain, {
     documentService,

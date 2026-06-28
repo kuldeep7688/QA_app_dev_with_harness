@@ -20,7 +20,7 @@ echo ""
 
 echo "[4/5] Verifying harness files..."
 FILES_OK=true
-for file in AGENTS.md CLAUDE.md feature_list.json clean-state-checklist.md session-handoff.md evaluator-rubric.md quality-document.md; do
+for file in AGENTS.md feature_list.json clean-state-checklist.md session-handoff.md evaluator-rubric.md quality-document.md; do
   if [ ! -f "$file" ]; then
     echo "  MISSING: $file"
     FILES_OK=false

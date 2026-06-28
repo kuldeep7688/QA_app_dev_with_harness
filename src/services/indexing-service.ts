@@ -1,18 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
+import type Database from 'better-sqlite3';
 import { Chunk, Document, AppStatus } from '../shared/types';
 import { PersistenceService } from './persistence-service';
 import { logger } from './logger';
 
 const log = logger.forService('IndexingService');
 
-const INDEX_META = 'index-meta.json';
-const CHUNKS_DIR = 'chunks';
-
 export class IndexingService {
   private persistence: PersistenceService;
+  private db: Database.Database;
 
-  constructor(persistence: PersistenceService) {
+  constructor(persistence: PersistenceService, db: Database.Database) {
     this.persistence = persistence;
+    this.db = db;
   }
 
   /** Start indexing documents. If documentId is provided, index only that document. */
@@ -31,7 +31,26 @@ export class IndexingService {
       }
       
       const chunks = this.chunkDocument(documentId, content);
-      this.persistence.writeJson(`${CHUNKS_DIR}/${documentId}.json`, chunks);
+      
+      // Insert chunks into SQLite in a transaction
+      this.db.transaction(() => {
+        const insertChunk = this.db.prepare(`
+          INSERT INTO chunks (id, document_id, idx, content, char_count, word_count, embedded_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        for (const chunk of chunks) {
+          insertChunk.run(
+            chunk.id,
+            chunk.documentId,
+            chunk.index,
+            chunk.content,
+            parseInt(chunk.metadata.charCount, 10),
+            parseInt(chunk.metadata.wordCount, 10),
+            null // embedded_at is NULL initially
+          );
+        }
+      })();
       
       log.info('Document chunked successfully', {
         documentId,
@@ -42,59 +61,67 @@ export class IndexingService {
       // Update document status and chunks count
       this.updateDocumentStatus(documentId, 'indexed', chunks.length);
       
-      // Update index metadata
-      const chunksMeta = this.persistence.readJson<Record<string, string[]>>(INDEX_META) ?? {};
-      chunksMeta[documentId] = chunks.map(c => c.id);
-      this.persistence.writeJson(INDEX_META, chunksMeta);
-      
       return this.getStatus();
     }
 
     // Index all documents that haven't been indexed yet
-    const docsMeta = this.persistence.readJson<Document[]>('documents-meta.json') ?? [];
-    const chunksMeta = this.persistence.readJson<Record<string, string[]>>(INDEX_META) ?? {};
+    const docs = this.db.prepare('SELECT * FROM documents WHERE status != ?').all('indexed') as any[];
 
     log.info('Starting bulk indexing', {
-      totalDocuments: docsMeta.length,
-      alreadyIndexed: Object.keys(chunksMeta).length,
+      totalDocuments: docs.length,
     });
 
-    for (const doc of docsMeta) {
-      if (chunksMeta[doc.id]) continue;
-
-      const content = this.persistence.readText(`content/${doc.id}.txt`);
+    for (const docRow of docs) {
+      const content = this.persistence.readText(`content/${docRow.id}.txt`);
       if (!content) {
-        log.error('Content not found during bulk indexing', { documentId: doc.id });
-        this.updateDocumentStatus(doc.id, 'error', 0);
+        log.error('Content not found during bulk indexing', { documentId: docRow.id });
+        this.updateDocumentStatus(docRow.id, 'error', 0);
         continue;
       }
 
-      const chunks = this.chunkDocument(doc.id, content);
-      this.persistence.writeJson(`${CHUNKS_DIR}/${doc.id}.json`, chunks);
-      chunksMeta[doc.id] = chunks.map(c => c.id);
+      const chunks = this.chunkDocument(docRow.id, content);
+      
+      // Insert chunks into SQLite in a transaction
+      this.db.transaction(() => {
+        const insertChunk = this.db.prepare(`
+          INSERT INTO chunks (id, document_id, idx, content, char_count, word_count, embedded_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        for (const chunk of chunks) {
+          insertChunk.run(
+            chunk.id,
+            chunk.documentId,
+            chunk.index,
+            chunk.content,
+            parseInt(chunk.metadata.charCount, 10),
+            parseInt(chunk.metadata.wordCount, 10),
+            null
+          );
+        }
+      })();
       
       log.debug('Document indexed', {
-        documentId: doc.id,
+        documentId: docRow.id,
         chunkCount: chunks.length,
       });
       
       // Update document status and chunks count
-      this.updateDocumentStatus(doc.id, 'indexed', chunks.length);
+      this.updateDocumentStatus(docRow.id, 'indexed', chunks.length);
     }
 
-    this.persistence.writeJson(INDEX_META, chunksMeta);
-    log.info('Bulk indexing completed', { totalIndexed: Object.keys(chunksMeta).length });
+    log.info('Bulk indexing completed');
     
     return this.getStatus();
   }
 
   /** Get current indexing status. */
   getStatus(): AppStatus {
-    const docs = this.persistence.readJson<Document[]>('documents-meta.json') ?? [];
-    const chunksMeta = this.persistence.readJson<Record<string, string[]>>(INDEX_META) ?? {};
+    const totalDocs = this.db.prepare('SELECT COUNT(*) as count FROM documents').get() as { count: number };
+    const indexedDocs = this.db.prepare('SELECT COUNT(*) as count FROM documents WHERE status = ?').get('indexed') as { count: number };
 
-    const currentIndexed = Object.keys(chunksMeta).length;
-    const totalDocuments = docs.length;
+    const currentIndexed = indexedDocs.count;
+    const totalDocuments = totalDocs.count;
     const isReady = currentIndexed === totalDocuments && totalDocuments > 0;
 
     log.debug('Indexing status queried', {
@@ -113,20 +140,34 @@ export class IndexingService {
 
   /** Get all chunks for a document. */
   getChunksForDocument(documentId: string): Chunk[] {
-    return this.persistence.readJson<Chunk[]>(`${CHUNKS_DIR}/${documentId}.json`) ?? [];
+    const rows = this.db.prepare('SELECT * FROM chunks WHERE document_id = ? ORDER BY idx').all(documentId) as any[];
+    
+    return rows.map(row => ({
+      id: row.id,
+      documentId: row.document_id,
+      content: row.content,
+      index: row.idx,
+      metadata: {
+        charCount: String(row.char_count),
+        wordCount: String(row.word_count),
+      },
+    }));
   }
 
   /** Get all chunks across all documents. */
   getAllChunks(): Chunk[] {
-    const chunksMeta = this.persistence.readJson<Record<string, string[]>>(INDEX_META) ?? {};
-    const allChunks: Chunk[] = [];
-
-    for (const docId of Object.keys(chunksMeta)) {
-      const chunks = this.getChunksForDocument(docId);
-      allChunks.push(...chunks);
-    }
-
-    return allChunks;
+    const rows = this.db.prepare('SELECT * FROM chunks ORDER BY document_id, idx').all() as any[];
+    
+    return rows.map(row => ({
+      id: row.id,
+      documentId: row.document_id,
+      content: row.content,
+      index: row.idx,
+      metadata: {
+        charCount: String(row.char_count),
+        wordCount: String(row.word_count),
+      },
+    }));
   }
 
   /** Split a document into chunks of ~500 characters at paragraph boundaries. */
@@ -169,18 +210,9 @@ export class IndexingService {
     };
   }
 
-  /** Update document status and chunks count in documents-meta.json */
-  private updateDocumentStatus(documentId: string, status: Document['status'], chunksCount: number): void {
-    const docsMeta = this.persistence.readJson<Document[]>('documents-meta.json') ?? [];
-    const docIndex = docsMeta.findIndex(d => d.id === documentId);
-    
-    if (docIndex !== -1) {
-      docsMeta[docIndex] = {
-        ...docsMeta[docIndex],
-        status,
-        chunks: chunksCount,
-      };
-      this.persistence.writeJson('documents-meta.json', docsMeta);
-    }
+  /** Update document status in documents table */
+  private updateDocumentStatus(documentId: string, status: Document['status'], _chunksCount: number): void {
+    // Note: chunksCount is not stored in documents table, it's calculated via COUNT() when needed
+    this.db.prepare('UPDATE documents SET status = ? WHERE id = ?').run(status, documentId);
   }
 }

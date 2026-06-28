@@ -135,7 +135,6 @@ This project includes a comprehensive development harness for AI agents and huma
 ### Core Files
 
 - **AGENTS.md** - Startup rules, layer boundaries, conventions, and definition of done
-- **CLAUDE.md** - Quick reference with all IPC channels, interfaces, and common tasks
 - **feature_list.json** - Current status of all 17 features with evidence and timestamps
 - **init.sh** - Project initialization and verification script
 

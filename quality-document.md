@@ -123,7 +123,6 @@ Renderer (React) → Preload (contextBridge) → Main (IPC handlers) → Service
 
 **Documentation Files:**
 - ✅ AGENTS.md (startup rules, conventions, definition of done)
-- ✅ CLAUDE.md (quick reference with all IPC channels and interfaces)
 - ✅ docs/ARCHITECTURE.md (full system architecture with diagrams)
 - ✅ docs/PRODUCT.md (feature requirements and constraints)
 - ✅ docs/RELIABILITY.md (logging, benchmarking, clean state)
@@ -135,7 +134,7 @@ Renderer (React) → Preload (contextBridge) → Main (IPC handlers) → Service
 **Strengths:**
 - Excellent documentation hierarchy for agent readability
 - Clear separation of concerns in docs (architecture/product/reliability)
-- Complete IPC channel reference in CLAUDE.md
+- Complete IPC channel reference in AGENTS.md and ARCHITECTURE.md
 - Feature tracking with evidence in feature_list.json
 
 ### 7. Harness Completeness (5/5)
@@ -143,7 +142,6 @@ Renderer (React) → Preload (contextBridge) → Main (IPC handlers) → Service
 | File | Present | Quality |
 |------|---------|---------|
 | AGENTS.md | ✅ | Complete with startup rules and conventions |
-| CLAUDE.md | ✅ | Complete quick reference |
 | feature_list.json | ✅ | 15 features, all tracked with evidence |
 | init.sh | ✅ | 5-step verification suite |
 | session-handoff.md | ✅ | Current state and recent changes |

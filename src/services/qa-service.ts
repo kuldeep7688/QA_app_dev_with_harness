@@ -1,12 +1,10 @@
+import type Database from 'better-sqlite3';
 import { QAResponse, QAHistory, Citation, FeedbackEntry } from '../shared/types';
 import { PersistenceService } from './persistence-service';
 import { IndexingService } from './indexing-service';
 import { logger } from './logger';
 
 const log = logger.forService('QaService');
-
-const QA_HISTORY_FILE = 'qa-history.json';
-const FEEDBACK_FILE = 'feedback.json';
 
 /** Mock Q&A patterns keyed to document content keywords. */
 const MOCK_PATTERNS: Array<{
@@ -42,12 +40,12 @@ const MOCK_PATTERNS: Array<{
 ];
 
 export class QaService {
-  private persistence: PersistenceService;
   private indexingService: IndexingService;
+  private db: Database.Database;
 
-  constructor(persistence: PersistenceService, indexingService?: IndexingService) {
-    this.persistence = persistence;
-    this.indexingService = indexingService ?? new IndexingService(persistence);
+  constructor(persistence: PersistenceService, db: Database.Database, indexingService?: IndexingService) {
+    this.db = db;
+    this.indexingService = indexingService ?? new IndexingService(persistence, db);
   }
 
   /** Ask a question and get a grounded answer with citations. */
@@ -80,8 +78,8 @@ export class QaService {
         .sort((a, b) => b.score - a.score)
         .slice(0, 2);
 
-      // Get document metadata for citations
-      const docs = this.persistence.readJson<Array<{ id: string; title: string }>>('documents-meta.json') ?? [];
+      // Get document metadata for citations from SQLite
+      const docs = this.db.prepare('SELECT id, title FROM documents').all() as Array<{ id: string; title: string }>;
 
       // Calculate normalized confidence scores (0-1 range)
       const maxScore = Math.max(...relevant.map(r => r.score), 1);
@@ -128,14 +126,25 @@ export class QaService {
 
   /** Get the Q&A history. */
   getHistory(): QAHistory[] {
-    const history = this.persistence.readJson<QAHistory[]>(QA_HISTORY_FILE) ?? [];
+    const rows = this.db.prepare('SELECT * FROM qa_history ORDER BY ts DESC').all() as any[];
+    
+    const history: QAHistory[] = rows.map(row => ({
+      question: row.question,
+      response: {
+        answer: row.answer,
+        citations: JSON.parse(row.citations_json),
+        confidence: row.confidence,
+        timestamp: row.ts,
+      },
+    }));
+    
     log.debug('Retrieved Q&A history', { entryCount: history.length });
     return history;
   }
 
   /** Clear all Q&A history. */
   clearHistory(): void {
-    this.persistence.writeJson(QA_HISTORY_FILE, []);
+    this.db.prepare('DELETE FROM qa_history').run();
     log.info('Q&A history cleared');
   }
 
@@ -169,9 +178,10 @@ export class QaService {
       submittedAt: new Date().toISOString(),
     };
 
-    const feedback = this.getFeedback();
-    feedback.push(entry);
-    this.persistence.writeJson(FEEDBACK_FILE, feedback);
+    this.db.prepare(`
+      INSERT INTO feedback (id, response_ts, question, rating, comment, submitted_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(entry.id, entry.responseTimestamp, entry.question, entry.rating, null, entry.submittedAt);
 
     log.info('Feedback submitted', {
       feedbackId: entry.id,
@@ -184,14 +194,24 @@ export class QaService {
 
   /** Get all feedback entries. */
   getFeedback(): FeedbackEntry[] {
-    const feedback = this.persistence.readJson<FeedbackEntry[]>(FEEDBACK_FILE) ?? [];
+    const rows = this.db.prepare('SELECT * FROM feedback ORDER BY submitted_at DESC').all() as any[];
+    
+    const feedback: FeedbackEntry[] = rows.map(row => ({
+      id: row.id,
+      responseTimestamp: row.response_ts,
+      question: row.question,
+      rating: row.rating as 'positive' | 'negative',
+      submittedAt: row.submitted_at,
+    }));
+    
     log.debug('Retrieved feedback entries', { entryCount: feedback.length });
     return feedback;
   }
 
   private saveToHistory(question: string, response: QAResponse): void {
-    const history = this.getHistory();
-    history.push({ question, response });
-    this.persistence.writeJson(QA_HISTORY_FILE, history);
+    this.db.prepare(`
+      INSERT INTO qa_history (ts, question, answer, confidence, citations_json)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(response.timestamp, question, response.answer, response.confidence, JSON.stringify(response.citations));
   }
 }

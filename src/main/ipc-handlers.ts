@@ -5,6 +5,7 @@ import { QaService } from '../services/qa-service';
 import { PersistenceService } from '../services/persistence-service';
 import { IPC_CHANNELS } from '../shared/types';
 import { logger } from '../services/logger';
+import { clearAllData } from '../services/db';
 
 const log = logger.forService('IPC');
 
@@ -126,7 +127,14 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
   // App reset
   ipcMain.handle(IPC_CHANNELS.RESET_DATA, async () => {
     log.info('IPC received', { channel: IPC_CHANNELS.RESET_DATA });
-    return persistenceService.resetAll();
+    
+    // Clear all data from database tables (keeps schema intact)
+    clearAllData();
+    log.info('Database tables cleared');
+    
+    // Clear filesystem data (documents and index files, but not database files)
+    persistenceService.resetAll();
+    log.info('Filesystem data cleared');
   });
 
   const registeredChannels = Object.values(IPC_CHANNELS);

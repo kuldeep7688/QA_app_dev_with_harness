@@ -192,10 +192,21 @@ export class PersistenceService {
   resetAll(): void {
     log.warn('Resetting all data', { dataDir: this.dataDir });
     try {
-      if (fs.existsSync(this.dataDir)) {
-        fs.rmSync(this.dataDir, { recursive: true, force: true });
+      // Delete all files in documents directory
+      if (fs.existsSync(this.documentsDir)) {
+        this.removeDirectoryContents(this.documentsDir);
+        log.info('Documents directory cleared', { documentsDir: this.documentsDir });
       }
+      
+      // Delete all files in index directory (except the database files)
+      if (fs.existsSync(this.indexDir)) {
+        this.removeDirectoryContents(this.indexDir);
+        log.info('Index directory cleared', { indexDir: this.indexDir });
+      }
+      
+      // Re-ensure directories exist
       this.ensureDirectories();
+      
       log.info('Data directory reset complete', { dataDir: this.dataDir });
     } catch (error) {
       log.error('Failed to reset data directory', {
@@ -203,6 +214,44 @@ export class PersistenceService {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
+    }
+  }
+
+  /** Recursively remove directory contents (helper for resetAll) */
+  private removeDirectoryContents(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) return;
+    
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      
+      // Skip .fuse_hidden files - they'll be cleaned up by the filesystem
+      if (entry.name.startsWith('.fuse_hidden')) {
+        log.debug('Skipping FUSE hidden file', { path: fullPath });
+        continue;
+      }
+      
+      // Skip database files - we'll clear the data but keep the schema
+      if (entry.name === 'index.db' || entry.name.startsWith('index.db-')) {
+        log.debug('Skipping database file', { path: fullPath });
+        continue;
+      }
+      
+      try {
+        if (entry.isDirectory()) {
+          this.removeDirectoryContents(fullPath);
+          fs.rmdirSync(fullPath);
+        } else {
+          fs.unlinkSync(fullPath);
+        }
+      } catch (error) {
+        // Log but continue - some files might be temporarily locked
+        log.warn('Failed to remove entry during reset', {
+          path: fullPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 }
