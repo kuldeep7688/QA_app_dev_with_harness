@@ -5,6 +5,7 @@ import { PersistenceService } from '../src/services/persistence-service';
 import { DocumentService } from '../src/services/document-service';
 import { IndexingService } from '../src/services/indexing-service';
 import { QaService } from '../src/services/qa-service';
+import { embed } from '../src/services/embedding-service';
 import { initDatabase } from '../src/services/db';
 import { runMigrations } from '../src/services/migrations/runner';
 
@@ -49,7 +50,7 @@ async function run() {
   {
     const documents = new DocumentService(persistence, db);
     const indexing = new IndexingService(persistence, db);
-    const qa = new QaService(persistence, db, indexing);
+    const qa = new QaService(db, embed);
 
     const doc = documents.importDocument(srcPath);
     check('Session 1: document imported', !!doc.id);
@@ -80,7 +81,7 @@ async function run() {
     // Here we simulate by just re-instantiating services with the same db
     const documents = new DocumentService(persistence, db);
     const indexing = new IndexingService(persistence, db);
-    const qa = new QaService(persistence, db, indexing);
+    const qa = new QaService(db, embed);
 
     const docs = documents.listDocuments();
     check('Session 2: documents loaded', docs.length === 1, `got ${docs.length}`);

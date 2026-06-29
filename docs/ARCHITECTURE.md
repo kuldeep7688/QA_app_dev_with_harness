@@ -70,7 +70,7 @@ React 18 application bundled by Vite:
 - `PersistenceService` -- Low-level JSON/text file I/O with atomic writes.
 - `DocumentService` -- Document CRUD with content storage and cleanup.
 - `IndexingService` -- Paragraph-aware chunking (~500 chars) and index management.
-- `QaService` -- Mock Q&A with keyword-based retrieval and citations.
+- `QaService` -- Q&A with hybrid (BM25 + vector) retrieval and dynamic confidence scoring.
 - `Logger` -- Structured JSON logging with timestamps, log levels, and service-scoped loggers.
 
 ## Full Data Flow
@@ -101,17 +101,17 @@ React 18 application bundled by Vite:
 2. App.tsx calls window.knowledgeBase.qa.ask(question)
 3. QaService.ask():
    a. Logs question with length
-   b. Simulates processing delay (100-500ms)
-   c. Gets all chunks from IndexingService
-   d. Tokenizes question into keywords (length > 2)
-   e. Scores each chunk by keyword overlap count
-   f. Selects top 2 chunks as citations
-   g. Generates answer from mock patterns or fallback
-   h. Creates QAResponse with confidence score
-   i. Saves to qa-history.json
+   b. Calls retriever.hybridSearch(db, question, embedFn) with mode='hybrid' (or 'bm25' if vector extension not loaded), topK=5
+   c. Hybrid retriever runs BM25 (FTS5 + bm25) and vector (sqlite-vec KNN) in parallel
+   d. Fuses results via Reciprocal Rank Fusion (k=60)
+   e. Hydrates fused results with document titles
+   f. Derives confidence from fused score distribution: topScore * 30 + source-agreement bonus + gap-to-second bonus, capped at [0,1]
+   g. Generates answer from mock patterns or fallback using citation excerpts
+   h. Creates QAResponse with dynamic confidence score
+   i. Saves to qa_history table
    j. Logs answer with confidence, citationCount, durationMs
 4. Result flows to renderer
-5. App.tsx displays answer with citations and feedback buttons
+5. App.tsx displays answer with citations (including BM25/vector rank + source badges) and feedback buttons
 ```
 
 ### Feedback Flow
@@ -234,12 +234,13 @@ CREATE TABLE chunks (
   idx         INTEGER NOT NULL,
   content     TEXT NOT NULL,
   char_count  INTEGER, word_count INTEGER,
-  embedded_at TEXT
+  embedded_at TEXT,
+  vec_rowid   INTEGER            -- links to chunks_vec.rowid for hybrid join
 );
 CREATE INDEX chunks_doc_idx ON chunks(document_id, idx);
 
 CREATE VIRTUAL TABLE chunks_fts USING fts5(
-  content, content='chunks', content_rowid='rowid',
+  content,
   tokenize='porter unicode61'
 );
 -- triggers keep chunks_fts in sync with chunks
@@ -257,21 +258,26 @@ CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT);
 
 ```
 question
-  ├─ embed(question) ────► sqlite-vec KNN top-N ──► [(rowid, vRank)]
-  └─ tokenize(question) ─► FTS5 MATCH + bm25() ───► [(rowid, bRank)]
-                                                       │
-                       Reciprocal Rank Fusion ◄────────┘
-                                       │
-                  dedup by rowid; score = Σ 1/(k + rank)
-                                       │
-                              top-K (default 5)
-                                       │
-                       hydrate chunks + documents
-                                       │
-                  pass as citations to QaService.answer()
+  ├─ embed(question) ────► sqlite-vec KNN top-N ──► [(vecRowid, distance)]
+  │                            │
+  │                    JOIN chunks via chunks.vec_rowid
+  │                            │
+  │                    ──► [(chunkRowid, vRank)]
+  │
+  └─ tokenize(question) ─► FTS5 MATCH + bm25() ───► [(chunkRowid, bRank)]
+                                                              │
+                       Reciprocal Rank Fusion ◄─────────────────┘
+                                      │
+                 dedup by rowid; score = Σ 1/(k + rank)
+                                      │
+                             top-K (default 5)
+                                      │
+                      hydrate chunks + documents
+                                      │
+                 pass as citations to QaService.answer()
 ```
 
-Defaults: `N=20` per source, `K=5`, `rrfK=60`, all configurable via `settings.json`.
+Defaults: `N=20` per source, `K=5`, `rrfK=60`, all configurable via `opts` parameter.
 
 ### New / Changed Layer Map
 
@@ -281,19 +287,39 @@ Services (post-migration)
   ├─ migrations/            -- versioned SQL/TS migrations (schema_meta)
   ├─ embedding-service.ts   -- MiniLM model loader, embed/embedBatch
   ├─ retriever.ts           -- pure hybridSearch(query, opts) → fused results
+  │                            BM25 via FTS5 + bm25(), vector via sqlite-vec KNN,
+  │                            RRF fusion (k=60 default), modes: hybrid|bm25|vector
+  ├─ retriever-service.ts   -- legacy BM25-only wrapper (kept for backward compat)
   ├─ indexing-service.ts    -- chunks → SQLite + chunks_fts (triggers) + chunks_vec
+  │                            stores vec_rowid in chunks table for join
   ├─ qa-service.ts          -- calls retriever; confidence from fused scores
   └─ persistence-service.ts -- retained for raw content/<id>.txt files only
 ```
 
-### New IPC Channels (planned)
+### IPC Channels (25 total — 14 original + 11 SQLite/hybrid additions)
 
-| Channel | Purpose |
-|---|---|
-| `indexing:rebuild-embeddings` | Re-embed all chunks (idempotent UPSERT); emits progress |
-| `indexing:progress` (event) | Streamed batch progress from main → renderer |
-| `qa:retrieve-debug` | Returns BM25, vector, and fused lists (no answer) for inspection |
-| `settings:get` / `settings:set` | Read/write retrieval settings |
+| Channel | Direction | Handler | Purpose |
+|---------|-----------|---------|---------|
+| `documents:list` | R -> M | DocumentService.listDocuments | List all documents |
+| `documents:import` | R -> M | DocumentService.importDocument | Import a file |
+| `documents:get` | R -> M | DocumentService.getDocument | Get document by ID |
+| `documents:get-content` | R -> M | DocumentService.getDocument | Get document content |
+| `documents:delete` | R -> M | DocumentService.deleteDocument | Delete document |
+| `indexing:start` | R -> M | IndexingService.startIndexing | Start indexing |
+| `indexing:status` | R -> M | IndexingService.getStatus | Get indexing status |
+| `indexing:chunks` | R -> M | IndexingService.getChunksForDocument | Get chunks |
+| `indexing:rebuild-embeddings` | R -> M | IndexingService.rebuildEmbeddings | Re-embed all chunks |
+| `indexing:progress` (event) | M -> R | IndexingService.rebuildEmbeddings | Progress stream |
+| `qa:ask` | R -> M | QaService.ask | Ask a question |
+| `qa:history` | R -> M | QaService.getHistory | Get Q&A history |
+| `qa:clear-history` | R -> M | QaService.clearHistory | Clear history |
+| `qa:retrieve-debug` | R -> M | QaService.retrieveDebug | Debug retrieval (returns BM25, vector, fused lists) |
+| `feedback:submit` | R -> M | QaService.submitFeedback | Submit feedback |
+| `feedback:list` | R -> M | QaService.getFeedback | Get all feedback |
+| `app:reset` | R -> M | PersistenceService.resetAll | Reset all data |
+| `app:status` | R -> M | IndexingService.getStatus | Get app status |
+| `dialog:show-open` | R -> M | dialog.showOpenDialog | File picker |
+| `settings:get` / `settings:set` | R -> M | planned for Phase E | Settings |
 
 ### Migration & Backward Compatibility
 
@@ -319,3 +345,163 @@ knowledge-base-data/
 - `sqlite-vec` ships platform binaries via npm; if load fails the app must degrade to BM25-only mode with a visible status flag.
 - MiniLM model adds ~25 MB; default is bundled (no network), with first-run download as an alternative.
 - RRF `k` is data-dependent; default 60 (literature norm) is exposed in settings and tuned via the eval harness.
+
+---
+
+## Planned: LLM Answer Generation (after hybrid retrieval)
+
+Once the hybrid retriever is in place, the final piece turns the app from a mock Q&A demo into a real RAG system: an LLM provider generates answers grounded in the retrieved citations. The default provider is NVIDIA NIM (OpenAI-compatible endpoint), configured via a `.env` file.
+
+### Target Stack
+
+| Concern | Component |
+|---|---|
+| LLM provider | NVIDIA NIM (`https://integrate.api.nvidia.com/v1`) — OpenAI-compatible chat completions |
+| Auth | `NVIDIA_API_KEY` in `.env` (loaded by `dotenv`); key never reaches renderer |
+| Default model | `google/gemma-2-2b-it` (configurable via env or settings) |
+| Streaming | SSE (`stream: true`) → `webContents.send()` token deltas |
+| Cancel | `AbortController` |
+| HTTP client | Native `fetch` (Electron 42+) |
+| Markdown render | `react-markdown` + `remark-gfm` in renderer |
+
+### Provider Architecture
+
+```
+src/services/providers/
+  types.ts              -- LlmProvider interface, ChatMessage, ChatResponse,
+                           StreamChunk, LlmOptions
+  nvidia-provider.ts    -- concrete LlmProvider; calls NVIDIA NIM
+                           chat() + chatStream() with AbortSignal support
+```
+
+QaService is injected with `LlmProvider | null` at construction. When null (env missing, health check failed), it falls back to a simplified mock response. When present, it calls `buildPrompt()` → `llmProvider.chat()` or `chatStream()`.
+
+### Prompt Assembly Flow
+
+```
+retaiever.hybridSearch(question)
+        │
+        ▼
+  Citation[] (top-K via RRF)
+        │
+  buildPrompt(question, citations, chatHistory?)
+        │
+        ▼
+  ChatMessage[]
+  ├─ system: role instructions + inline citation excerpts
+  ├─ [optional history: N prior exchanges]
+  └─ user: question
+        │
+  llmProvider.chatStream(messages, opts)
+        │
+        ▼
+  StreamChunk[] → IPC → renderer → ReactMarkdown
+```
+
+### Streaming IPC
+
+```
+Renderer                    Main                          NVIDIA
+   │                         │                               │
+   ├─ ipcRenderer.invoke ──► qa:ask-stream                  │
+   │ ('qa:ask-stream',       │                               │
+   │  {question, requestId}) │                               │
+   │                         ├─ retriever.hybridSearch()      │
+   │                         ├─ buildPrompt()                │
+   │                         ├─ llmProvider.chatStream() ───► POST /chat/completions
+   │                         │      {stream: true, signal}   │
+   │                         │                               │
+   │  ◄─ qa:stream-chunk ───┤ ◄── SSE data: {...} ──────────┤
+   │    {requestId, delta}   │                               │
+   │                         │                               │
+   │  ◄─ qa:stream-done ────┤ ◄── SSE [DONE] or finish ─────┤
+   │    {requestId,          │        {usage, finish_reason}
+   │     QAResponse}         │
+   │                         │
+   │  ... or ipcRenderer ──► qa:cancel
+   │  invoke('qa:cancel',    ├─ signal.abort()
+   │   {requestId})          │
+```
+
+### New Services Map
+
+```
+Services (post-LLM)
+  ├─ providers/
+  │   ├─ types.ts            -- LlmProvider, ChatMessage, ChatResponse, etc.
+  │   └─ nvidia-provider.ts  -- NVIDIA NIM implementation
+  ├─ prompt-builder.ts       -- buildPrompt(question, citations, history?) → ChatMessage[]
+  ├─ qa-service.ts           -- injected LlmProvider; calls retriever + prompt-builder + provider
+  ├─ retriever.ts            -- hybridSearch (from prior phase)
+  ├─ db.ts, migrations/      -- SQLite (from prior phase)
+  └─ ...
+```
+
+### IPC Channels (7 additions — 32 total including hybrid search additions)
+
+| Channel | Direction | Purpose |
+|---|---|---|
+| `llm:health` | R → M | Connectivity check (minimal chat) |
+| `qa:ask-stream` | R → M | Streaming ask; response via events |
+| `qa:stream-chunk` (event) | M → R | Token delta per chunk |
+| `qa:stream-done` (event) | M → R | Final `QAResponse` with citations, usage |
+| `qa:cancel` | R → M | Abort in-flight request by `requestId` |
+| `settings:get` | R → M | Read settings JSON |
+| `settings:set` | R → M | Write settings JSON |
+
+### Type Additions
+
+```typescript
+// shared/types.ts additions
+interface TokenUsage { prompt: number; completion: number; total: number; }
+
+// QAResponse gains:
+//   modelUsed?: string
+//   tokensUsed?: TokenUsage
+
+// AppStatus gains:
+//   llmStatus: 'healthy' | 'unhealthy' | 'disabled'
+//   llmModel?: string
+```
+
+### Configuration
+
+`.env` (at project root, `.gitignore`d):
+```
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_MODEL_NAME=google/gemma-2-2b-it
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+```
+
+`settings.json` (runtime overrides):
+```json
+{
+  "retrievalMode": "hybrid",
+  "topK": 5,
+  "modelName": "google/gemma-2-2b-it",
+  "temperature": 0.3,
+  "maxTokens": 1024,
+  "streamEnabled": true,
+  "systemPrompt": "You are a helpful assistant..."
+}
+```
+
+### Error Classification
+
+| Error class | User message | Log level |
+|---|---|---|
+| `AbortError` | Silent (cancel flow) | DEBUG |
+| 401 / 403 | "Invalid API key. Check your .env file." | ERROR |
+| 429 | "Rate limited by NVIDIA. Please wait." | WARN |
+| 5xx / network | "LLM service unavailable. Check your connection." | ERROR |
+| Timeout (30s) | "Request timed out." | ERROR |
+
+No API key or raw response body in error messages or logs.
+
+### Risk Notes
+
+- `.env` file must be `.gitignore`d — the API key must never be committed.
+- NVIDIA NIM rate limits apply; 429 responses handled gracefully with retry-after hint.
+- `gemma-2-2b-it` is a lightweight model (~2B params) suitable for RAG; latency typically < 2s.
+- Markdown rendering of answers introduces XHTML injection to React via `dangerouslySetInnerHTML` — mitigated by `react-markdown`'s built-in sanitisation.
+- Streaming chunk ordering guaranteed by HTTP/1.1 response body ordering; request ID de-duplication handles any IPC reordering.

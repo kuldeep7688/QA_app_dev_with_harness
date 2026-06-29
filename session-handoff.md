@@ -2,7 +2,36 @@
 
 ## Current State (2026-06-28)
 
+### Recently Completed (2026-06-28)
+
+**QaService Wired to Hybrid Retriever** (2026-06-28)
+- QaService.ask() now calls retriever.hybridSearch() instead of getAllChunks() + keyword overlap
+- Citations carry bm25Rank, vectorRank, sources (Array<'bm25'|'vector'>) for debug and source badges
+- Confidence derived dynamically from fused score distribution: topScore * 30 + both-sources bonus + gap-to-second bonus, capped at [0,1]
+- QaService constructor simplified to `(db, embedFn)` — removed PersistenceService and IndexingService dependencies
+- Fixed bm25Search() in retriever.ts to sanitize FTS5 queries: strip `?'"()` chars and remove English stopwords/question words to prevent FTS5 implicit-AND failures
+- Created test/qa-hybrid.test.ts with 7 integration tests all PASS: empty state, citations metadata, dynamic confidence, retrieval debug fields, history persistence, clear history
+- Updated main.ts, demo test, and persistence test to use new QaService constructor
+- TypeScript compiles 0 errors, all 56 test assertions pass
+
 ### Recently Completed
+
+**Hybrid Retriever (BM25 + Vector via RRF)** (2026-06-28)
+- Created pure `src/services/retriever.ts` with `hybridSearch(db, query, embedFn, opts?)` function
+- BM25 search via FTS5 + bm25() ranking with porter stemming
+- Vector search via sqlite-vec KNN with proper vec_rowid JOIN to chunks table
+- Reciprocal Rank Fusion (RRF) merging with configurable k (default 60)
+- Three modes: `hybrid` | `bm25` | `vector` via `opts.mode`
+- Configurable topN (per-source), topK (final), rrfK
+- Deterministic tie-breaking via chunk rowid (stable secondary key)
+- Structured logging at INFO/DEBUG for all operations
+- All 20 integration tests PASS (49 total across 6 vitest suites)
+
+**Migration 004: vec_rowid Link** (2026-06-28)
+- Created `src/services/migrations/004_vec_link.sql` adding `vec_rowid INTEGER` to chunks table
+- Updated `indexing-service.ts` to store `vec_rowid` in both `indexChunksWithEmbeddings()` and `rebuildEmbeddings()`
+- Fixes the fragile implicit rowid alignment between chunks and chunks_vec tables
+- Enables proper SQL JOIN: `chunks_vec.rowid = chunks.vec_rowid`
 
 **FTS5 BM25 Keyword Index** (2026-06-28)
 - Implemented FTS5 full-text search index for keyword-based retrieval using SQLite's BM25 ranking
@@ -63,16 +92,24 @@
 | schema-migrations | ✅ pass |
 | json-to-sqlite-migration | ✅ pass |
 | fts5-keyword-index | ✅ pass |
+| vector-extension-load | ✅ pass |
+| embedding-service | ✅ pass |
+| chunk-pipeline-rewrite | ✅ pass |
+| reindex-embeddings | ✅ pass |
+| hybrid-retriever | ✅ pass |
+| qa-uses-hybrid | ✅ pass |
 
-**24 features complete!** (20 original + 3 SQLite migration + 1 FTS5)
+**30 features complete!** (20 original + 4 SQLite/migration + 6 Phase B/C)
 
-### Files Modified (2026-06-28 - FTS5 Implementation)
+### Files Modified (2026-06-28 - Hybrid Retriever Implementation)
 
-- `src/services/migrations/002_fts5.sql` — NEW: FTS5 virtual table + triggers for BM25 keyword search (31 lines)
-- `src/services/retriever-service.ts` — NEW: BM25 search and chunk retrieval service (136 lines)
-- `test/fts5-bm25.test.ts` — NEW: Comprehensive FTS5 tests - 17 cases all PASS (375 lines)
-- `test/persistence.test.ts` — UPDATED: SQLite-compatible persistence tests with db reuse pattern (20/20 pass)
-- `feature_list.json` — fts5-keyword-index status="pass" with full evidence, updated persistence/clean-state-reset evidence
+- `src/services/retriever.ts` — NEW: Pure hybridSearch function with BM25 + Vector + RRF fusion (230 lines)
+- `src/services/migrations/004_vec_link.sql` — NEW: Adds vec_rowid column to chunks table for proper join
+- `src/services/indexing-service.ts` — UPDATED: Stores vec_rowid in both indexChunksWithEmbeddings and rebuildEmbeddings
+- `test/hybrid-retriever.test.ts` — NEW: 20 integration tests for hybrid, bm25, vector modes (400 lines)
+- `feature_list.json` — hybrid-retriever status="pass" with evidence
+- `docs/ARCHITECTURE.md` — UPDATED: Schema includes vec_rowid, pipeline includes vec_rowid JOIN, IPC table expanded
+- `session-handoff.md` — Updated with latest feature status and evidence
 
 ### Files Modified (2026-06-28 - SQLite Migration)
 
@@ -128,6 +165,19 @@
 7. Build system: `scripts/build.sh` and `scripts/dev.js` copy `.sql` files to `dist/` (TypeScript doesn't copy non-.ts files)
 8. Inspection: Use `bash scripts/inspect-db.sh` or `sqlite3 knowledge-base-data/index.db` to inspect database
 
+### Files Modified (2026-06-28 - QaService Hybrid Wired)
+
+- `src/shared/types.ts` — UPDATED: Citation interface adds bm25Rank, vectorRank, sources fields
+- `src/services/qa-service.ts` — REWRITTEN: uses hybridSearch(), dynamic confidence, simplified constructor (db, embedFn)
+- `src/services/retriever.ts` — UPDATED: bm25Search() sanitizes queries (strips stopwords/question words + special chars)
+- `src/main/main.ts` — UPDATED: passes embed to QaService constructor
+- `test/qa-hybrid.test.ts` — NEW: 7 integration tests for hybrid-wired Q&A
+- `test/persistence.test.ts` — UPDATED: uses new QaService(db, embed) constructor
+- `test/sqlite-workflow-demo.test.ts` — UPDATED: uses new QaService(db, embed) constructor
+- `docs/ARCHITECTURE.md` — UPDATED: Q&A flow reflects hybrid retriever, dynamic confidence
+- `feature_list.json` — qa-uses-hybrid status="pass" with evidence
+- `session-handoff.md` — Updated with latest feature status
+
 **Chunks Table Schema:**
 - rowid: INTEGER PRIMARY KEY (auto-increment 1,2,3...) - used by FTS5 for JOIN operations
 - id: TEXT (UUID string e.g., "chunk-001") - used by application code for unique identification
@@ -152,18 +202,21 @@
 5. Answer: QaService generates answer from top chunks, stores in `qa_history` with citations_json
 6. Feedback: User rating stored in `feedback` table with `response_ts` reference
 
+### Recently Completed (2026-06-29)
+
+**Retrieval Debug IPC** (2026-06-29)
+- Added RETRIEVE_DEBUG IPC channel (`qa:retrieve-debug`) to shared types
+- Created `debugSearch()` in `retriever.ts` that returns bm25Results (rowid, score, rank), vectorResults (rowid, distance, rank), and fusedResults (full HybridSearchResult[] with chunk details)
+- Refactored `hybridSearch` to share `internalHybridSearch` helper, eliminating code duplication
+- Added `retrieveDebug()` method to QaService (delegates to debugSearch, logged at DEBUG)
+- Registered IPC handler in ipc-handlers.ts (logged at DEBUG)
+- Exposed via preload qa namespace
+- Created test/retrieval-debug.test.ts with 11 tests all PASS
+- TypeScript compiles 0 errors, build succeeds
+
+**Feature Status Update:** 31 features complete! (36 total)
+
 ## Next Features to Implement
-
-**Phase B: Indexing Layer (4 features remaining)**
-1. vector-extension-load - Load sqlite-vec extension, create chunks_vec virtual table
-2. embedding-service - Local embeddings using @xenova/transformers all-MiniLM-L6-v2
-3. chunk-pipeline-rewrite - Write embeddings during indexing to chunks_vec
-4. reindex-embeddings - IPC command to rebuild embeddings for all chunks
-
-**Phase C: Hybrid Retrieval (3 features)**
-- hybrid-retriever - BM25 + vector search with RRF merging
-- qa-uses-hybrid - Wire QaService to hybrid retriever
-- retrieval-debug-ipc - Debug IPC for eval harness
 
 **Phase D: Quality Measurement (3 features)**
 - golden-eval-set - Create test queries with expected chunks
@@ -179,9 +232,10 @@
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
-4. Read `feature_list.json` to see current feature status (24/36 complete)
-5. Next: Implement **vector-extension-load** feature from Phase B
+4. Read `feature_list.json` to see current feature status (30/36 complete)
+5. Next: Implement **retrieval-debug-ipc** feature from Phase C
 6. Testing notes:
-   - Use `npx tsx test/<test-file>.ts` to run individual tests
+   - Use `npx vitest run test/<test-file>.ts` to run individual tests (vitest-compatible tests only)
+   - Some old test files use custom runners and are incompatible with vitest (pre-existing)
    - Tests require `npm rebuild better-sqlite3` if NODE_MODULE_VERSION error occurs
-   - FTS5 tests seed fixture data with known chunks for deterministic ranking verification
+   - Hybrid retriever tests seed 10 fixture chunks with real MiniLM embeddings (384-dim)

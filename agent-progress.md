@@ -1948,3 +1948,198 @@ Ready to implement next feature: **vector-extension-load** (Phase B)
 **Features Complete:** 24/36 ✅ (20 original + 3 SQLite + 1 FTS5)
 
 **Project Status:** Phase B - Indexing Layer in progress
+
+---
+
+## Session: 2026-06-28 — Hybrid Retriever (BM25 + Vector via RRF)
+
+**Feature:** hybrid-retriever  
+**Status:** ✅ PASS  
+**Duration:** ~30 minutes
+
+### What Was Implemented
+
+Created pure `src/services/retriever.ts` module with `hybridSearch(db, query, embedFn, opts?)` function that runs BM25 and/or vector search in parallel and merges via Reciprocal Rank Fusion.
+
+### Key Implementation Details
+
+1. **Pure function architecture** — No class or global state. Takes `db` and `embedFn` as dependencies.
+2. **BM25 search** — Uses existing FTS5 + `-bm25(chunks_fts)` with porter stemming (via `RetrieverService.bm25Search()`)
+3. **Vector search** — Embeds query via provided `embedFn`, runs sqlite-vec KNN, maps `chunks_vec.rowid` → `chunks.rowid` via `chunks.vec_rowid`
+4. **RRF fusion** — Σ 1/(k + rank) with configurable k (default 60), deterministic tie-breaking by chunk rowid
+5. **Three modes** — `hybrid` | `bm25` | `vector` via `opts.mode`
+6. **Configurable** — `topN` (per-source, default 20), `topK` (final results, default 5), `rrfK` (default 60)
+
+### Supporting Changes
+
+- **Migration 004_vec_link.sql** — Added `vec_rowid INTEGER` column to chunks table, enabling proper SQL JOIN between `chunks` and `chunks_vec`
+- **IndexingService fix** — Updated `indexChunksWithEmbeddings()` and `rebuildEmbeddings()` to store `vec_rowid` when inserting embeddings
+- **Structured logging** — All hybrid search operations logged at INFO/DEBUG with timing and result counts
+
+### Verification
+
+- ✅ TypeScript compiles with 0 errors
+- ✅ Build succeeds (Vite 34 modules)
+- ✅ 20/20 hybrid retriever tests PASS
+- ✅ 49/49 total vitest tests PASS across 6 suites
+- ✅ Init.sh all 5 checks PASS
+- ✅ All mode flags work correctly
+- ✅ Deterministic ordering on tie
+- ✅ Empty/whitespace queries return []
+- ✅ Relevant chunks rank in top-5 for all modes
+- ✅ Hybrid mode introduces additional results from vector search
+
+### Key Learnings
+
+1. **vec_rowid linking was critical** — The chunks and chunks_vec tables had no join column, meaning vector results couldn't be mapped back to chunk data. The `vec_rowid` column fixes this properly with a 1-line migration.
+2. **RRF with test fixtures** — With MiniLM embeddings, the hybrid fusion naturally improves recall even when BM25 already has perfect precision, because vector search adds semantically similar chunks.
+3. **Mode isolation** — `bm25` mode never calls `embedFn`, `vector` mode never calls FTS5 — clean separation ensures no unnecessary work in single-mode operation.
+4. **Graceful degradation** — If `sqlite-vec` fails to load, vector search is skipped entirely and hybrid falls back to BM25-only with a WARN log.
+
+### Files Modified
+
+```
+src/services/retriever.ts                    — NEW: pure hybridSearch function (230 lines)
+src/services/migrations/004_vec_link.sql     — NEW: vec_rowid column for chunks
+src/services/indexing-service.ts             — UPDATED: stores vec_rowid on embedding insert
+test/hybrid-retriever.test.ts                — NEW: 20 integration tests (400 lines)
+feature_list.json                            — hybrid-retriever → pass
+docs/ARCHITECTURE.md                         — UPDATED: schema, pipeline, IPC table
+session-handoff.md                           — Updated
+agent-progress.md                            — This entry
+```
+
+---
+
+## Session: 2026-06-28 — QaService Wired to Hybrid Retriever
+
+**Feature:** qa-uses-hybrid  
+**Status:** ✅ PASS  
+**Duration:** ~25 minutes
+
+### What Was Implemented
+
+Rewired `QaService.ask()` to use `retriever.hybridSearch()` instead of the old keyword-overlap scan. Confidence is now dynamically derived from the fused score distribution instead of hardcoded 0.85/0.30. Citations carry retrieval debug metadata (`bm25Rank`, `vectorRank`, `sources`).
+
+### Key Implementation Details
+
+1. **Hybrid retrieval integration** — `QaService.ask()` calls `hybridSearch()` with mode='hybrid' (or 'bm25' if vector extension unavailable), topK=5. No more `getAllChunks()` or keyword overlap matching.
+2. **Dynamic confidence** — Derived from: `topFusedScore * 30 + (both-sources ? 0.15 : 0) + (gap-to-second > 0.005 ? 0.1 : 0)`, capped at [0,1]. Produces varying confidence (0.0 to ~0.95) per query.
+3. **Constructor simplified** — `new QaService(db, embedFn)` — removed `PersistenceService` and `IndexingService` dependencies.
+4. **Citation metadata** — Each citation now includes `bm25Rank`, `vectorRank`, and `sources: Array<'bm25'|'vector'>` for debugging and future source badges.
+5. **FTS5 query sanitization** — Fixed `bm25Search()` to strip `?'"()` characters and common English stopwords/question words from FTS5 queries, preventing implicit-AND failures where question words (what, how) don't appear in document content.
+6. **Mock patterns retained** — Answer text still uses keyword-driven mock patterns. Citations now come from the hybrid retriever, providing genuine grounded content.
+
+### Supporting Changes
+
+- `src/shared/types.ts` — Citation interface extended with bm25Rank, vectorRank, sources
+- `main.ts` — Passes `embed` function to QaService constructor
+- Legacy tests updated — `persistence.test.ts` and `sqlite-workflow-demo.test.ts` use new constructor
+
+### Verification
+
+- ✅ TypeScript compiles with 0 errors
+- ✅ Build succeeds (Vite 34 modules)
+- ✅ 7/7 qa-hybrid integration tests PASS
+- ✅ All 56 vitest assertions PASS across 7 suites
+- ✅ Confidence varies: architecture query → 0.59, python query → 0.0
+- ✅ Empty state returns 0 citations
+- ✅ Citations include bm25Rank, vectorRank, sources
+- ✅ Q&A history persists correctly with hybrid-sourced citations
+- ✅ Clear history works
+
+### Key Learnings
+
+1. **FTS5 implicit AND** — FTS5's default MATCH behavior uses AND between terms. Natural language questions containing stopwords/question words (what, how, the, is) cause empty results when those words aren't in documents. Solution: strip common stopwords from BM25 queries.
+2. **Dynamic confidence calibration** — RRF fused scores range ~0.008–0.033. Mapping to 0–1 requires scaling by ~30x plus bonuses for source agreement (0.15) and gap-to-second (0.1).
+3. **Constructor simplification** — Removing IndexingService dependency from QaService makes the API cleaner and more testable. The hybrid retriever is a pure function needing only db + embedFn.
+
+### Files Modified
+
+```
+src/shared/types.ts              — UPDATED: Citation gains bm25Rank, vectorRank, sources
+src/services/qa-service.ts        — REWRITTEN: uses hybridSearch(), dynamic confidence
+src/services/retriever.ts         — UPDATED: bm25Search() sanitizes queries
+src/main/main.ts                  — UPDATED: passes embed to QaService
+test/qa-hybrid.test.ts            — NEW: 7 integration tests
+test/persistence.test.ts          — UPDATED: new QaService constructor
+test/sqlite-workflow-demo.test.ts — UPDATED: new QaService constructor
+docs/ARCHITECTURE.md              — UPDATED: Q&A flow, services section
+feature_list.json                 — qa-uses-hybrid → pass
+session-handoff.md                — Updated
+agent-progress.md                 — This entry
+```
+
+### Status Summary
+
+- **Features Complete:** 30/36
+- **Phase C Features Remaining:** 1 (retrieval-debug-ipc)
+- **Build Health:** ✅ Green
+- **Next Feature:** retrieval-debug-ipc
+
+---
+
+## Session: 2026-06-29 — Retrieval Debug IPC
+
+**Feature:** retrieval-debug-ipc  
+**Status:** ✅ PASS  
+**Phase:** C. Hybrid Retrieval  
+**Duration:** ~30 minutes
+
+### What Was Implemented
+
+The `qa:retrieve-debug` IPC channel that returns the three ranked lists (BM25, vector, fused) for a query without invoking the answer step. Used by the eval harness and a future "why this citation?" UI.
+
+### Changes Made
+
+1. **`src/shared/types.ts`** — Added `RETRIEVE_DEBUG: 'qa:retrieve-debug'` to `IPC_CHANNELS`
+
+2. **`src/services/retriever.ts`** — Major refactoring:
+   - Extracted `internalHybridSearch()` helper that returns both `HybridSearchResult[]` and `RankedItem[]` (the raw ranked items before fusion)
+   - Created `debugSearch()` function that calls `internalHybridSearch` and maps `RankedItem[]` into three separate arrays: `bm25Results` (rowid, score, rank), `vectorResults` (rowid, distance, rank), `fusedResults` (full HybridSearchResult[])
+   - Refactored `hybridSearch()` to delegate to `internalHybridSearch()` — eliminates code duplication (both now share the same core logic)
+   - Exported `DebugSearchResult` interface and `debugSearch` function
+
+3. **`src/services/qa-service.ts`** — Added `retrieveDebug(question, opts?)` method that delegates to `debugSearch()`, logged at DEBUG level
+
+4. **`src/main/ipc-handlers.ts`** — Registered IPC handler for `qa:retrieve-debug` (logged at DEBUG)
+
+5. **`src/preload/preload.ts`** — Added `RETRIEVE_DEBUG` channel constant and `qa.retrieveDebug()` method to the preload API
+
+6. **`src/renderer/types.d.ts`** — Added `retrieveDebug` to the `qa` namespace type declaration
+
+7. **`test/retrieval-debug.test.ts`** — NEW: 11 tests covering all acceptance criteria
+
+### Verification
+
+```
+✅ npm run check — 0 TypeScript errors
+✅ npm run build — 34 modules, 161 kB
+✅ npx vitest run test/retrieval-debug.test.ts — 11/11 PASS
+```
+
+**Test coverage:**
+- Empty query → empty arrays for all three lists
+- BM25 mode → bm25Results with correct shape (rowid, score, rank), vectorResults empty
+- Vector mode → vectorResults with correct shape (rowid, distance, rank), bm25Results empty
+- Hybrid mode → both bm25Results and vectorResults populated
+- fusedResults sorted by fusedScore descending
+- BM25 results ordered by rank (1, 2, 3...)
+- All BM25 scores are finite numbers
+- All vector distances are finite numbers
+- All fusedScores are finite numbers
+- fusedResults have complete chunk details
+- BM25 results have no duplicate rowids
+
+### Key Learnings
+
+1. **Refactoring for reuse**: Extracting `internalHybridSearch` let both `hybridSearch` and `debugSearch` share the same core logic without duplication.
+2. **Separate concerns**: The `debugSearch` function is purely about returning additional debug information — it doesn't change the behavior of `hybridSearch` at all.
+3. **IPC logging level**: Per the acceptance criteria, the `qa:retrieve-debug` IPC handler uses DEBUG level logging (not INFO) since it's a diagnostic operation.
+
+### Status Summary
+
+- **Features Complete:** 31/36
+- **Features Remaining:** 5
+- **Build Health:** ✅ Green
+- **Next Feature:** golden-eval-set (Phase D)

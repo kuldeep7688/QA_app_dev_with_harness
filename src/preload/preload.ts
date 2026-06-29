@@ -12,9 +12,12 @@ const IPC_CHANNELS = {
   START_INDEXING: 'indexing:start',
   GET_INDEXING_STATUS: 'indexing:status',
   GET_CHUNKS: 'indexing:chunks',
+  REBUILD_EMBEDDINGS: 'indexing:rebuild-embeddings',
+  INDEXING_PROGRESS: 'indexing:progress',
   ASK_QUESTION: 'qa:ask',
   GET_HISTORY: 'qa:history',
   CLEAR_HISTORY: 'qa:clear-history',
+  RETRIEVE_DEBUG: 'qa:retrieve-debug',
   SUBMIT_FEEDBACK: 'feedback:submit',
   LIST_FEEDBACK: 'feedback:list',
   GET_STATUS: 'app:status',
@@ -42,11 +45,19 @@ const api = {
     start: (documentId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_INDEXING, documentId),
     status: () => ipcRenderer.invoke(IPC_CHANNELS.GET_INDEXING_STATUS),
     chunks: (documentId: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_CHUNKS, documentId),
+    rebuildEmbeddings: () => ipcRenderer.invoke(IPC_CHANNELS.REBUILD_EMBEDDINGS),
+    onProgress: (callback: (data: { processed: number; total: number }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { processed: number; total: number }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.INDEXING_PROGRESS, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.INDEXING_PROGRESS, handler);
+    },
   },
   qa: {
     ask: (question: string) => ipcRenderer.invoke(IPC_CHANNELS.ASK_QUESTION, question),
     history: () => ipcRenderer.invoke(IPC_CHANNELS.GET_HISTORY),
     clearHistory: () => ipcRenderer.invoke(IPC_CHANNELS.CLEAR_HISTORY),
+    retrieveDebug: (question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.RETRIEVE_DEBUG, question, opts),
   },
   feedback: {
     submit: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') =>

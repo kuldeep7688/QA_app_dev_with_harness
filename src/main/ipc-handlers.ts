@@ -78,6 +78,12 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
     return qaService.clearHistory();
   });
 
+  // Retrieval debug
+  ipcMain.handle(IPC_CHANNELS.RETRIEVE_DEBUG, async (_event, question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }) => {
+    log.debug('IPC received', { channel: IPC_CHANNELS.RETRIEVE_DEBUG, question: question.substring(0, 100), mode: opts?.mode });
+    return qaService.retrieveDebug(question, opts);
+  });
+
   // Feedback
   ipcMain.handle(IPC_CHANNELS.SUBMIT_FEEDBACK, async (_event, responseTimestamp: string, question: string, rating: 'positive' | 'negative') => {
     log.info('IPC received', { channel: IPC_CHANNELS.SUBMIT_FEEDBACK, rating, question: question.substring(0, 100) });
@@ -122,6 +128,16 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
       });
       return null;
     }
+  });
+
+  // Rebuild embeddings
+  ipcMain.handle(IPC_CHANNELS.REBUILD_EMBEDDINGS, async (event) => {
+    log.info('IPC received', { channel: IPC_CHANNELS.REBUILD_EMBEDDINGS });
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const sendProgress = (processed: number, total: number) => {
+      win?.webContents.send(IPC_CHANNELS.INDEXING_PROGRESS, { processed, total });
+    };
+    return indexingService.rebuildEmbeddings(sendProgress);
   });
 
   // App reset

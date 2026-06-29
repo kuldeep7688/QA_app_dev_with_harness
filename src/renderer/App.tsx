@@ -16,6 +16,7 @@ export function App() {
     indexStatus: 'idle',
     lastActivity: '',
     indexedCount: 0,
+    vectorEnabled: false,
   });
   const [history, setHistory] = useState<QAHistory[]>([]);
   const [showImport, setShowImport] = useState(false);
@@ -140,6 +141,7 @@ export function App() {
         indexStatus: 'idle',
         lastActivity: '',
         indexedCount: 0,
+        vectorEnabled: false,
       });
       setShowResetDialog(false);
     } catch (err) {

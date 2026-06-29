@@ -5,6 +5,7 @@ import { logger } from './logger';
 const log = logger.forService('database');
 
 let dbInstance: Database.Database | null = null;
+let vectorExtensionLoaded = false;
 
 /**
  * Initialize the SQLite database at <dataDir>/index.db
@@ -38,12 +39,16 @@ export function initDatabase(dataDir: string): Database.Database {
     const version = dbInstance.pragma('user_version', { simple: true });
     const sqliteVersion = dbInstance.prepare('SELECT sqlite_version()').pluck().get() as string;
     
+    // Try to load sqlite-vec extension
+    vectorExtensionLoaded = loadVectorExtension(dbInstance);
+    
     log.info('SQLite database initialized', {
       dbPath,
       sqliteVersion,
       walMode,
       foreignKeysEnabled: fkEnabled === 1,
       userVersion: version,
+      vectorExtensionLoaded,
     });
     
     return dbInstance;
@@ -76,6 +81,7 @@ export function closeDatabase(): void {
     log.info('Closing database connection');
     dbInstance.close();
     dbInstance = null;
+    vectorExtensionLoaded = false;
   }
 }
 
@@ -86,7 +92,45 @@ export function resetDatabaseInstance(): void {
   if (dbInstance) {
     dbInstance.close();
     dbInstance = null;
+    vectorExtensionLoaded = false;
   }
+}
+
+/**
+ * Load the sqlite-vec vector extension.
+ * Returns true if loaded successfully, false otherwise.
+ * Graceful fallback: if loading fails, app continues in BM25-only mode.
+ */
+function loadVectorExtension(db: Database.Database): boolean {
+  try {
+    // Attempt to load sqlite-vec extension
+    // The extension provides vec0 virtual table for vector similarity search
+    const sqliteVec = require('sqlite-vec');
+    
+    // Load the extension into the database
+    sqliteVec.load(db);
+    
+    // Verify the extension loaded by checking for vec_version()
+    const versionCheck = db.prepare('SELECT vec_version()').pluck().get();
+    
+    log.info('sqlite-vec extension loaded successfully', {
+      vecVersion: versionCheck,
+    });
+    
+    return true;
+  } catch (error) {
+    log.error('Failed to load sqlite-vec extension. Vector search disabled. App will run in BM25-only mode.', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
+/**
+ * Check if vector extension is loaded and available.
+ */
+export function isVectorExtensionLoaded(): boolean {
+  return vectorExtensionLoaded;
 }
 
 /**
@@ -105,6 +149,18 @@ export function clearAllData(): void {
       db.prepare('DELETE FROM feedback').run();
       db.prepare('DELETE FROM qa_history').run();
       db.prepare('DELETE FROM chunks_fts').run();  // FTS5 virtual table
+      
+      // Only clear chunks_vec if vector extension is loaded
+      if (vectorExtensionLoaded) {
+        try {
+          db.prepare('DELETE FROM chunks_vec').run();
+        } catch (error) {
+          log.warn('Failed to clear chunks_vec table (may not exist)', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      
       db.prepare('DELETE FROM chunks').run();
       db.prepare('DELETE FROM documents').run();
       

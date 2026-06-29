@@ -23,6 +23,11 @@ Before writing any code, complete these steps in order:
 - Benchmark scripts for performance measurement
 - Cleanup scanner for detecting stale artifacts
 
+### Planned (in feature_list.json, not yet implemented)
+
+- **Hybrid retrieval** (Phases A–E): SQLite-backed BM25 + vector search via RRF fusion
+- **LLM answer generation** (Phases F–H): NVIDIA NIM provider, streaming answers, markdown rendering, cancellable requests
+
 ## Docs Hierarchy
 
 The `docs/` directory is organized for agent readability:
@@ -48,7 +53,7 @@ When adding new features, update the relevant doc before writing code.
 
 - The ONLY bridge between main and renderer.
 - Uses `contextBridge.exposeInMainWorld` to expose typed APIs.
-- Exposes: documents, indexing, qa, feedback, app namespaces.
+- Exposes: documents, indexing, qa, feedback, app, llm, settings namespaces.
 
 ### Renderer (`src/renderer/`)
 

@@ -26,7 +26,10 @@ export interface Citation {
   documentTitle: string;
   chunkIndex: number;
   excerpt: string;
-  confidence: number; // Relevance score 0.0-1.0
+  confidence: number;
+  bm25Rank?: number;
+  vectorRank?: number;
+  sources: Array<'bm25' | 'vector'>;
 }
 
 export interface QAResponse {
@@ -46,6 +49,7 @@ export interface AppStatus {
   indexStatus: 'idle' | 'indexing' | 'ready' | 'error';
   lastActivity: string;
   indexedCount: number;
+  vectorEnabled: boolean; // Whether sqlite-vec extension loaded successfully
 }
 
 /** IPC channel names -- single source of truth. */
@@ -61,11 +65,14 @@ export const IPC_CHANNELS = {
   START_INDEXING: 'indexing:start',
   GET_INDEXING_STATUS: 'indexing:status',
   GET_CHUNKS: 'indexing:chunks',
+  REBUILD_EMBEDDINGS: 'indexing:rebuild-embeddings',
+  INDEXING_PROGRESS: 'indexing:progress',
 
   // Q&A
   ASK_QUESTION: 'qa:ask',
   GET_HISTORY: 'qa:history',
   CLEAR_HISTORY: 'qa:clear-history',
+  RETRIEVE_DEBUG: 'qa:retrieve-debug',
 
   // App status
   GET_STATUS: 'app:status',

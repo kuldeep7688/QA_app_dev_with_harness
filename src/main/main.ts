@@ -9,6 +9,7 @@ import { initDatabase } from '../services/db';
 import { runMigrations } from '../services/migrations/runner';
 import { LegacyImporter } from '../services/legacy-importer';
 import { logger } from '../services/logger';
+import { embed } from '../services/embedding-service';
 
 const log = logger.forService('Main');
 
@@ -93,7 +94,7 @@ function initializeServices() {
   // Initialize services with database instance
   const documentService = new DocumentService(persistence, db);
   const indexingService = new IndexingService(persistence, db);
-  const qaService = new QaService(persistence, db);
+  const qaService = new QaService(db, embed);
 
   registerIpcHandlers(ipcMain, {
     documentService,

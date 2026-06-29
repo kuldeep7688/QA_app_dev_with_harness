@@ -11,6 +11,7 @@ import { PersistenceService } from '../src/services/persistence-service';
 import { DocumentService } from '../src/services/document-service';
 import { IndexingService } from '../src/services/indexing-service';
 import { QaService } from '../src/services/qa-service';
+import { embed } from '../src/services/embedding-service';
 
 async function demo() {
   console.log('=== SQLite Workflow Demo ===\n');
@@ -30,7 +31,7 @@ async function demo() {
   const persistence = new PersistenceService(testDir);
   const docService = new DocumentService(persistence, db);
   const indexService = new IndexingService(persistence, db);
-  const qaService = new QaService(persistence, db);
+  const qaService = new QaService(db, embed);
 
   console.log('--- Step 1: Import Document ---');
   const doc = docService.importDocument(sampleDoc);

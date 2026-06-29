@@ -53,6 +53,16 @@ Every log entry is a single-line JSON object:
 - Batch completion with throughput metrics
 - Content not found warnings
 
+**Retriever:**
+- Hybrid search start with query, mode, configuration (INFO)
+- BM25 result count, score range, timing (DEBUG)
+- Vector raw results count, top distance, embedding dim, embedding + search timing (DEBUG)
+- Vector results after vec_rowid mapping (DEBUG)
+- Missing vec_rowid mapping warnings (WARN)
+- Vector search failure fallback to BM25 (ERROR)
+- Empty query / no results (INFO/DEBUG)
+- Hybrid search completion with result count and total elapsed (INFO)
+
 **QaService:**
 - Question processing start
 - Answer generation with confidence and duration

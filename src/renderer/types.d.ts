@@ -20,6 +20,11 @@ declare global {
         ask: (question: string) => Promise<import('../shared/types').QAResponse>;
         history: () => Promise<import('../shared/types').QAHistory[]>;
         clearHistory: () => Promise<void>;
+        retrieveDebug: (question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }) => Promise<{
+          bm25Results: Array<{ rowid: number; score: number; rank: number }>;
+          vectorResults: Array<{ rowid: number; distance: number; rank: number }>;
+          fusedResults: Array<unknown>;
+        }>;
       };
       feedback: {
         submit: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') => Promise<import('../shared/types').FeedbackEntry>;

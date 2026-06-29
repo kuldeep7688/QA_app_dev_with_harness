@@ -1,8 +1,8 @@
 import type Database from 'better-sqlite3';
 import { QAResponse, QAHistory, Citation, FeedbackEntry } from '../shared/types';
-import { PersistenceService } from './persistence-service';
-import { IndexingService } from './indexing-service';
 import { logger } from './logger';
+import { hybridSearch, debugSearch, DebugSearchResult } from './retriever';
+import { isVectorExtensionLoaded } from './db';
 
 const log = logger.forService('QaService');
 
@@ -10,97 +10,75 @@ const log = logger.forService('QaService');
 const MOCK_PATTERNS: Array<{
   keywords: string[];
   answer: string;
-  excerpt: string;
 }> = [
   {
     keywords: ['design', 'architecture', 'pattern'],
     answer: 'The system uses a layered architecture with clear boundaries between the main process, preload scripts, and renderer. Each layer communicates through typed IPC channels, and the services layer handles business logic independently of the UI.',
-    excerpt: 'The system uses a layered architecture with clear boundaries',
   },
   {
     keywords: ['import', 'document', 'file'],
     answer: 'Documents are imported by copying the source file to the local data directory. The system extracts text content and creates metadata including title, filename, size, and import timestamp. After import, documents can be indexed for search.',
-    excerpt: 'Documents are imported by copying the source file',
   },
   {
     keywords: ['index', 'chunk', 'search'],
     answer: 'The indexing pipeline splits documents into chunks of approximately 500 characters at paragraph boundaries. Each chunk includes metadata like character count and word count. The index enables grounded Q&A with citations pointing to specific document sections.',
-    excerpt: 'The indexing pipeline splits documents into chunks',
   },
   {
     keywords: ['retrieval', 'search', 'query'],
     answer: 'Retrieval works by matching query keywords against indexed chunks. The system ranks chunks by keyword overlap and returns the most relevant excerpts as citations alongside the generated answer.',
-    excerpt: 'Retrieval works by matching query keywords against indexed chunks',
   },
   {
     keywords: ['meeting', 'notes', 'summary'],
     answer: 'The meeting summary indicates that the team discussed implementing a retrieval-augmented generation pipeline. Key decisions included using local chunk storage and citation-based verification to ensure answer accuracy.',
-    excerpt: 'The team discussed implementing a retrieval-augmented generation pipeline',
   },
 ];
 
 export class QaService {
-  private indexingService: IndexingService;
   private db: Database.Database;
+  private embedFn: (text: string) => Promise<Float32Array>;
 
-  constructor(persistence: PersistenceService, db: Database.Database, indexingService?: IndexingService) {
+  constructor(db: Database.Database, embedFn: (text: string) => Promise<Float32Array>) {
     this.db = db;
-    this.indexingService = indexingService ?? new IndexingService(persistence, db);
+    this.embedFn = embedFn;
   }
 
   /** Ask a question and get a grounded answer with citations. */
   async ask(question: string): Promise<QAResponse> {
     log.info('Processing question', { question: question.substring(0, 100) });
-    
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 400));
 
-    const chunks = this.indexingService.getAllChunks();
-    const citations: Citation[] = [];
+    // Run hybrid retrieval (BM25 + vector if available)
+    const results = await hybridSearch(this.db, question, this.embedFn, {
+      mode: isVectorExtensionLoaded() ? 'hybrid' : 'bm25',
+      topK: 5,
+    });
 
-    log.debug('Retrieving chunks for Q&A', { totalChunks: chunks.length });
+    // Get document metadata for citation titles
+    const docs = this.db.prepare('SELECT id, title FROM documents').all() as Array<{ id: string; title: string }>;
 
-    if (chunks.length > 0) {
-      // Find relevant chunks using keyword matching
-      const questionWords = question.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-      const scored = chunks.map(chunk => {
-        const contentLower = chunk.content.toLowerCase();
-        const score = questionWords.reduce(
-          (acc, word) => acc + (contentLower.includes(word) ? 1 : 0),
-          0
-        );
-        return { chunk, score };
-      });
+    const citations: Citation[] = results.map(r => {
+      const doc = docs.find(d => d.id === r.chunk.documentId);
+      return {
+        documentId: r.chunk.documentId,
+        documentTitle: doc?.title ?? 'Unknown Document',
+        chunkIndex: r.chunk.idx,
+        excerpt: r.chunk.content.substring(0, 200),
+        confidence: parseFloat(Math.min(1, r.fusedScore * 30 + (r.sources.length > 1 ? 0.15 : 0)).toFixed(2)),
+        bm25Rank: r.bm25Rank,
+        vectorRank: r.vectorRank,
+        sources: r.sources,
+      };
+    });
 
-      // Take top 2 relevant chunks as citations
-      const relevant = scored
-        .filter(s => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 2);
+    // Derive overall confidence from fused score distribution
+    const confidence = this.computeConfidence(results);
 
-      // Get document metadata for citations from SQLite
-      const docs = this.db.prepare('SELECT id, title FROM documents').all() as Array<{ id: string; title: string }>;
-
-      // Calculate normalized confidence scores (0-1 range)
-      const maxScore = Math.max(...relevant.map(r => r.score), 1);
-
-      for (const { chunk, score } of relevant) {
-        const doc = docs.find(d => d.id === chunk.documentId);
-        const normalizedScore = score / maxScore; // Normalize to 0-1
-        citations.push({
-          documentId: chunk.documentId,
-          documentTitle: doc?.title ?? 'Unknown Document',
-          chunkIndex: chunk.index,
-          excerpt: chunk.content.substring(0, 200),
-          confidence: parseFloat(normalizedScore.toFixed(2)), // Round to 2 decimals
-        });
-      }
-      
-      log.debug('Generated citations', {
-        citationCount: citations.length,
-        documentIds: citations.map(c => c.documentId),
-      });
-    }
+    log.info('Hybrid retrieval for question', {
+      resultCount: results.length,
+      citationCount: citations.length,
+      confidence,
+      topSource: results[0]?.sources ?? [],
+      topFusedScore: results[0]?.fusedScore ?? 0,
+    });
 
     // Generate answer from mock patterns or use fallback
     const answer = this.generateAnswer(question, citations);
@@ -108,13 +86,13 @@ export class QaService {
     const response: QAResponse = {
       answer,
       citations,
-      confidence: citations.length > 0 ? 0.85 : 0.3,
+      confidence,
       timestamp: new Date().toISOString(),
     };
 
     log.info('Question answered', {
       citationCount: citations.length,
-      confidence: response.confidence,
+      confidence,
       answerLength: answer.length,
     });
 
@@ -122,6 +100,41 @@ export class QaService {
     this.saveToHistory(question, response);
 
     return response;
+  }
+
+  /** Debug retrieval: returns raw BM25, vector, and fused lists without answer generation. */
+  async retrieveDebug(question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }): Promise<DebugSearchResult> {
+    log.debug('Retrieval debug requested', { question: question.substring(0, 100), mode: opts?.mode });
+
+    const results = await debugSearch(this.db, question, this.embedFn, {
+      mode: opts?.mode ?? (isVectorExtensionLoaded() ? 'hybrid' : 'bm25'),
+      topK: 5,
+    });
+
+    log.debug('Retrieval debug completed', {
+      bm25Count: results.bm25Results.length,
+      vectorCount: results.vectorResults.length,
+      fusedCount: results.fusedResults.length,
+    });
+
+    return results;
+  }
+
+  /** Derive confidence from the fused score distribution of hybrid search results. */
+  private computeConfidence(results: Array<{ fusedScore: number; sources: Array<'bm25' | 'vector'> }>): number {
+    if (results.length === 0) return 0;
+
+    const topScore = results[0].fusedScore;
+    const gapToSecond = results.length > 1 ? topScore - results[1].fusedScore : topScore;
+    const hasBothSources = results[0].sources.length > 1;
+
+    // Map RRF fused scores (~0.008 to ~0.033) to 0-1 confidence
+    let c = topScore * 30;
+    if (hasBothSources) c += 0.15;
+    if (gapToSecond > 0.005) c += 0.1;
+    if (results.length > 1 && results[0].sources.length > 1 && results[1].sources.length > 1) c += 0.05;
+
+    return parseFloat(Math.min(1, c).toFixed(2));
   }
 
   /** Get the Q&A history. */
@@ -149,7 +162,6 @@ export class QaService {
   }
 
   private generateAnswer(question: string, citations: Citation[]): string {
-    // Match against mock patterns
     const questionLower = question.toLowerCase();
     for (const pattern of MOCK_PATTERNS) {
       if (pattern.keywords.some(kw => questionLower.includes(kw))) {
@@ -160,7 +172,6 @@ export class QaService {
       }
     }
 
-    // Fallback answer
     if (citations.length > 0) {
       return `Based on the available documents, the most relevant information comes from "${citations[0].documentTitle}": ${citations[0].excerpt.substring(0, 150)}. However, a more specific answer would require additional context.`;
     }

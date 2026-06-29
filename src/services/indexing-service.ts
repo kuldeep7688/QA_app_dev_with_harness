@@ -3,6 +3,8 @@ import type Database from 'better-sqlite3';
 import { Chunk, Document, AppStatus } from '../shared/types';
 import { PersistenceService } from './persistence-service';
 import { logger } from './logger';
+import { isVectorExtensionLoaded } from './db';
+import { embedBatch } from './embedding-service';
 
 const log = logger.forService('IndexingService');
 
@@ -32,25 +34,8 @@ export class IndexingService {
       
       const chunks = this.chunkDocument(documentId, content);
       
-      // Insert chunks into SQLite in a transaction
-      this.db.transaction(() => {
-        const insertChunk = this.db.prepare(`
-          INSERT INTO chunks (id, document_id, idx, content, char_count, word_count, embedded_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        
-        for (const chunk of chunks) {
-          insertChunk.run(
-            chunk.id,
-            chunk.documentId,
-            chunk.index,
-            chunk.content,
-            parseInt(chunk.metadata.charCount, 10),
-            parseInt(chunk.metadata.wordCount, 10),
-            null // embedded_at is NULL initially
-          );
-        }
-      })();
+      // Insert chunks into SQLite and generate embeddings in a transaction
+      await this.indexChunksWithEmbeddings(chunks);
       
       log.info('Document chunked successfully', {
         documentId,
@@ -81,25 +66,8 @@ export class IndexingService {
 
       const chunks = this.chunkDocument(docRow.id, content);
       
-      // Insert chunks into SQLite in a transaction
-      this.db.transaction(() => {
-        const insertChunk = this.db.prepare(`
-          INSERT INTO chunks (id, document_id, idx, content, char_count, word_count, embedded_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        
-        for (const chunk of chunks) {
-          insertChunk.run(
-            chunk.id,
-            chunk.documentId,
-            chunk.index,
-            chunk.content,
-            parseInt(chunk.metadata.charCount, 10),
-            parseInt(chunk.metadata.wordCount, 10),
-            null
-          );
-        }
-      })();
+      // Insert chunks into SQLite and generate embeddings
+      await this.indexChunksWithEmbeddings(chunks);
       
       log.debug('Document indexed', {
         documentId: docRow.id,
@@ -135,6 +103,7 @@ export class IndexingService {
       indexStatus: isReady ? 'ready' : currentIndexed > 0 && currentIndexed < totalDocuments ? 'indexing' : totalDocuments === 0 ? 'idle' : 'idle',
       lastActivity: new Date().toISOString(),
       indexedCount: currentIndexed,
+      vectorEnabled: isVectorExtensionLoaded(),
     };
   }
 
@@ -154,6 +123,61 @@ export class IndexingService {
     }));
   }
 
+  /**
+   * Rebuild embeddings for all chunks. Idempotent — deletes existing vector rows first.
+   * Emits progress via the optional callback.
+   */
+  async rebuildEmbeddings(onProgress?: (processed: number, total: number) => void): Promise<AppStatus> {
+    if (!isVectorExtensionLoaded()) {
+      log.warn('Cannot rebuild embeddings: vector extension not loaded');
+      return this.getStatus();
+    }
+
+    const allChunks = this.getAllChunks();
+    const total = allChunks.length;
+
+    if (total === 0) {
+      log.info('No chunks to re-embed');
+      onProgress?.(0, 0);
+      return this.getStatus();
+    }
+
+    log.info('Rebuilding embeddings for all chunks', { total });
+
+    // Clear existing vector rows
+    this.db.prepare('DELETE FROM chunks_vec').run();
+    this.db.prepare('UPDATE chunks SET embedded_at = NULL').run();
+    log.info('Cleared existing embeddings', { total });
+
+    // Process in batches with progress
+    const BATCH_SIZE = 32;
+    let processed = 0;
+
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+      const batch = allChunks.slice(i, i + BATCH_SIZE);
+      const texts = batch.map(c => c.content);
+      const embeddings = await embedBatch(texts);
+
+      this.db.transaction(() => {
+        const insertVec = this.db.prepare('INSERT INTO chunks_vec (embedding) VALUES (?)');
+        const updateEmbedded = this.db.prepare('UPDATE chunks SET embedded_at = ?, vec_rowid = ? WHERE id = ?');
+        const now = new Date().toISOString();
+
+        for (let j = 0; j < batch.length; j++) {
+          const info = insertVec.run(embeddings[j]);
+          const vecRowid = Number(info.lastInsertRowid);
+          updateEmbedded.run(now, vecRowid, batch[j].id);
+        }
+      })();
+
+      processed += batch.length;
+      onProgress?.(processed, total);
+    }
+
+    log.info('Embedding rebuild complete', { total, processed });
+    return this.getStatus();
+  }
+
   /** Get all chunks across all documents. */
   getAllChunks(): Chunk[] {
     const rows = this.db.prepare('SELECT * FROM chunks ORDER BY document_id, idx').all() as any[];
@@ -168,6 +192,103 @@ export class IndexingService {
         wordCount: String(row.word_count),
       },
     }));
+  }
+
+  /**
+   * Insert chunks into SQLite and generate embeddings.
+   * Uses transaction for atomicity. Skips embeddings if vector extension not loaded.
+   */
+  private async indexChunksWithEmbeddings(chunks: Chunk[]): Promise<void> {
+    const startTime = Date.now();
+    const vectorEnabled = isVectorExtensionLoaded();
+    
+    // Step 1: Insert chunks into chunks table (triggers populate chunks_fts automatically)
+    const insertedRowids = this.db.transaction(() => {
+      const insertChunk = this.db.prepare(`
+        INSERT INTO chunks (id, document_id, idx, content, char_count, word_count, embedded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const rowids: number[] = [];
+      for (const chunk of chunks) {
+        const info = insertChunk.run(
+          chunk.id,
+          chunk.documentId,
+          chunk.index,
+          chunk.content,
+          parseInt(chunk.metadata.charCount, 10),
+          parseInt(chunk.metadata.wordCount, 10),
+          null // embedded_at is NULL initially
+        );
+        rowids.push(Number(info.lastInsertRowid));
+      }
+      
+      return rowids;
+    })();
+    
+    log.debug('Chunks inserted into SQLite', {
+      chunkCount: chunks.length,
+      durationMs: Date.now() - startTime,
+    });
+    
+    // Step 2: Generate embeddings and insert into chunks_vec (if vector extension loaded)
+    if (vectorEnabled) {
+      const embeddingStartTime = Date.now();
+      
+      // Generate embeddings for all chunks
+      const texts = chunks.map(c => c.content);
+      const embeddings = await embedBatch(texts);
+      
+      const embeddingGenTime = Date.now() - embeddingStartTime;
+      
+      log.info('Embeddings generated', {
+        chunkCount: chunks.length,
+        durationMs: embeddingGenTime,
+        throughputTextsPerSec: Math.round((chunks.length / embeddingGenTime) * 1000),
+      });
+      
+      // Insert embeddings into chunks_vec and update embedded_at
+      const insertStartTime = Date.now();
+      
+      this.db.transaction(() => {
+        // Insert embeddings (let sqlite-vec auto-assign rowids)
+        const insertEmbedding = this.db.prepare(`
+          INSERT INTO chunks_vec (embedding)
+          VALUES (?)
+        `);
+        
+        const updateEmbeddedAt = this.db.prepare(`
+          UPDATE chunks SET embedded_at = ?, vec_rowid = ? WHERE rowid = ?
+        `);
+        
+        const now = new Date().toISOString();
+        
+        // Insert embeddings and collect their rowids
+        const vecRowids: number[] = [];
+        for (let i = 0; i < embeddings.length; i++) {
+          const embedding = embeddings[i];
+          const info = insertEmbedding.run(embedding);
+          vecRowids.push(Number(info.lastInsertRowid));
+        }
+        
+        // Update embedded_at and vec_rowid for corresponding chunks
+        for (let i = 0; i < insertedRowids.length; i++) {
+          const chunkRowid = insertedRowids[i];
+          const vecRowid = vecRowids[i];
+          updateEmbeddedAt.run(now, vecRowid, chunkRowid);
+        }
+      })();
+      
+      log.info('Embeddings inserted into chunks_vec', {
+        chunkCount: embeddings.length,
+        insertDurationMs: Date.now() - insertStartTime,
+        totalDurationMs: Date.now() - startTime,
+      });
+    } else {
+      log.warn('Vector extension not loaded, skipping embedding generation', {
+        chunkCount: chunks.length,
+      });
+    }
   }
 
   /** Split a document into chunks of ~500 characters at paragraph boundaries. */

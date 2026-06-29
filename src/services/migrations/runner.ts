@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../logger.js';
+import { isVectorExtensionLoaded } from '../db.js';
 
 const log = logger.forService('migrations');
 
@@ -99,6 +100,17 @@ export function runMigrations(db: Database.Database): void {
         version: migration.version, 
         name: migration.name 
       });
+      continue;
+    }
+    
+    // Skip vector migration if extension is not loaded
+    if (migration.name === 'vector' && !isVectorExtensionLoaded()) {
+      log.warn('Skipping vector migration (sqlite-vec extension not loaded)', {
+        version: migration.version,
+        name: migration.name,
+      });
+      // Still update version to mark as "handled" (even though skipped)
+      setVersion(db, migration.version);
       continue;
     }
     
