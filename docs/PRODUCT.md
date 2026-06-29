@@ -114,7 +114,7 @@ The next product milestone replaces the current keyword-overlap retriever with a
 
 - **Better citations on paraphrased questions.** Semantic vector search catches matches that share meaning but not exact words; BM25 still handles exact-term queries (codes, names, identifiers) better than embeddings alone. Hybrid wins both.
 - **Honest confidence.** Confidence is derived from the fused retrieval score distribution (top score, gap to runner-up, agreement between BM25 and vector). The hardcoded 0.85 / 0.30 values are removed.
-- **Per-citation source badges.** Each citation in the conversation view shows whether it came from BM25, vector, or both — making it obvious why a chunk was surfaced.
+- **Per-citation source badges.** Each citation in the conversation view shows a small badge indicating which retriever found it and its rank position. **"BM25 #1"** = found only by keyword search, ranked #1 in BM25 results. **"Vector #3"** = found only by semantic similarity, ranked #3 in vector results. **"Hybrid"** = found by both. The badge makes it obvious at a glance why a chunk was surfaced — strong keyword match, strong semantic match, or both agreeing. BM25 uses SQLite FTS5's built-in `bm25()` ranking function (not a custom implementation).
 - **Retrieval settings.** A small settings surface lets users pick mode (`hybrid` | `bm25` | `vector`), `topK`, `topN`, and the RRF constant. Sensible defaults; no tuning required.
 - **Rebuild Embeddings command.** A one-click action re-embeds the entire library (idempotent), with progress feedback. Useful when switching embedding models or after a corrupted index.
 

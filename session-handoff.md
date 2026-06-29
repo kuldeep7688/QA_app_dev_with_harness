@@ -204,6 +204,19 @@
 
 ### Recently Completed (2026-06-29)
 
+**Citation Source Badges** (Phase E. Settings & UX) — 2026-06-29
+- Added `sourceBadge()` helper in `ConversationHistory.tsx` that derives badge label and colors from citation's `sources`, `bm25Rank`, and `vectorRank` fields
+- Badge renders inline between confidence percentage and document title in each expanded citation row
+- Color-coded: **Hybrid** (purple bg), **BM25 #N** (blue bg), **Vector #N** (green bg)
+- Cover-all fallback for edge cases (unknown source values)
+- No structural changes to citation layout — click-through and excerpt truncation preserved
+- TypeScript 0 errors, Vite builds 35 modules
+- `feature_list.json` updated with evidence
+
+**Feature Status Update:** 33 features complete! (36 total)
+
+## Recently Completed (2026-06-29)
+
 **Retrieval Debug IPC** (2026-06-29)
 - Added RETRIEVE_DEBUG IPC channel (`qa:retrieve-debug`) to shared types
 - Created `debugSearch()` in `retriever.ts` that returns bm25Results (rowid, score, rank), vectorResults (rowid, distance, rank), and fusedResults (full HybridSearchResult[] with chunk details)
@@ -213,10 +226,6 @@
 - Exposed via preload qa namespace
 - Created test/retrieval-debug.test.ts with 11 tests all PASS
 - TypeScript compiles 0 errors, build succeeds
-
-**Feature Status Update:** 32 features complete! (36 total)
-
-## Recently Completed (2026-06-29)
 
 **Retrieval Settings** (Phase E. Settings & UX) — 2026-06-29
 - Created `src/services/settings-service.ts` with `SettingsService` class: in-memory cache, `readJson/writeJson` to `<dataDir>/settings.json`, sensible defaults (hybrid, topK=5, topN=20, rrfK=60, embeddingsEnabled=true)
@@ -231,23 +240,36 @@
 - TypeScript compiles 0 errors, build succeeds (35 modules)
 - `docs/ARCHITECTURE.md` updated with settings IPC table and services layer
 
-## Next Features to Implement
+## Next Features to Implement (prioritized)
 
-**Phase D: Quality Measurement (3 features)**
+**Immediate: Phase F-H: LLM Foundation & Answer Generation (14 features)**
+- env-config - .env file loading for NVIDIA_API_KEY
+- llm-provider-interface - Abstract LlmProvider contract
+- nvidia-llm-provider - NVIDIA NIM API integration
+- llm-health-check - Connectivity verification IPC
+- prompt-builder - Build LLM prompts from citations
+- real-llm-answer - Replace mock with real LLM
+- streaming-answers - Token-by-token streaming via IPC
+- cancel-request - AbortController mid-stream cancel
+- llm-error-handling - Error classification and user messages
+- markdown-rendering - react-markdown + remark-gfm
+- token-usage-tracking - Token counts in UI and persistence
+- llm-settings - LLM settings panel (model, temperature, etc.)
+- answer-eval - Answer quality eval script
+- llm-health-ui - LLM status dot in StatusBar
+
+**Deferred: Phase D: Quality Measurement (3 features)**
 - golden-eval-set - Create test queries with expected chunks
 - eval-runner - Automated precision@5 and MRR measurement
 - eval-in-ci - CI integration for regression detection
-
-**Phase E: Settings & UX (1 feature)**
-- citation-source-badge - UI badges showing BM25/vector/hybrid sources
 
 ## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
-4. Read `feature_list.json` to see current feature status (32/36 complete)
-5. Next: Implement **golden-eval-set** feature from Phase D, **citation-source-badge** from Phase E, or continue with Phase D features
+4. Read `feature_list.json` to see current feature status (33/36 complete)
+5. Next: Implement **env-config** feature from Phase F, then proceed with the remaining LLM features (Phases F-H). Phase D eval features deferred to end.
 6. Testing notes:
    - Use `npx vitest run test/<test-file>.ts` to run individual tests (vitest-compatible tests only)
    - Some old test files use custom runners and are incompatible with vitest (pre-existing)

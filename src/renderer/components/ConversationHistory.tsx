@@ -31,6 +31,26 @@ interface CitationsBlockProps {
   citations: Citation[];
 }
 
+interface BadgeInfo {
+  label: string;
+  bg: string;
+  color: string;
+}
+
+function sourceBadge(c: Citation): BadgeInfo {
+  const isHybrid = c.sources.includes('bm25') && c.sources.includes('vector');
+  if (isHybrid) {
+    return { label: 'Hybrid', bg: '#2a1a4e', color: '#bb88ff' };
+  }
+  if (c.sources.includes('bm25') && c.bm25Rank !== undefined) {
+    return { label: `BM25 #${c.bm25Rank}`, bg: '#1a2a4e', color: '#88bbff' };
+  }
+  if (c.sources.includes('vector') && c.vectorRank !== undefined) {
+    return { label: `Vector #${c.vectorRank}`, bg: '#1a3a2a', color: '#88ff99' };
+  }
+  return { label: c.sources[0] || '—', bg: '#333', color: '#aaa' };
+}
+
 function CitationsBlock({ citations }: CitationsBlockProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -60,6 +80,7 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
         <div style={{ marginTop: '6px' }}>
           {citations.map((c, i) => {
             const cs = confidenceStyle(c.confidence);
+            const badge = sourceBadge(c);
             return (
               <div
                 key={i}
@@ -86,6 +107,21 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
                   }}
                 >
                   {Math.round(c.confidence * 100)}%
+                </div>
+                <div
+                  style={{
+                    padding: '2px 6px',
+                    background: badge.bg,
+                    color: badge.color,
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    marginTop: '1px',
+                  }}
+                >
+                  {badge.label}
                 </div>
                 <div style={{ fontSize: '12px', color: '#a0a0c0', lineHeight: 1.5 }}>
                   <strong style={{ color: '#c0c0e0' }}>{c.documentTitle}</strong>{' '}

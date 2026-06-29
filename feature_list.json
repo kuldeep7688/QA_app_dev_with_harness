@@ -345,59 +345,15 @@
       "id": "citation-source-badge",
       "name": "Citation Source Badges",
       "description": "ConversationHistory citations show small badges indicating retrieval source: 'BM25 #2', 'Vector #1', or 'Hybrid'. Helps users (and future debugging) understand why a citation surfaced.",
-      "status": "pending",
+      "status": "pass",
       "phase": "E. Settings & UX",
       "acceptance": [
         "Each citation renders the appropriate badge based on bm25Rank/vectorRank/sources.",
         "Click-through to source chunk still works.",
         "Visual evidence (screenshot) attached to feature entry on completion."
       ],
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "golden-eval-set",
-      "name": "Golden Q&A Eval Set",
-      "description": "test/fixtures/golden-qa.json with ≥10 question / expected-chunk-id pairs over data/sample-documents. Schema validated and committed. Used by both retrieval eval and answer-quality eval.",
-      "status": "pending",
-      "phase": "D. Quality Measurement",
-      "acceptance": [
-        "≥10 entries with {question, expectedChunkIds[], notes?}.",
-        "All expectedChunkIds resolvable from current sample-documents after re-indexing.",
-        "JSON schema validated by a small loader/test."
-      ],
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "eval-runner",
-      "name": "Retrieval Eval Runner",
-      "description": "scripts/eval-retrieval.ts runs each golden query through BM25, vector, and hybrid; computes precision@5, MRR, and mean latency. Writes eval-results.json and prints a table to stdout.",
-      "status": "pending",
-      "phase": "D. Quality Measurement",
-      "acceptance": [
-        "Runner exits 0 on success and non-zero on regression vs committed baseline.",
-        "eval-results.json contains per-mode precision@5, MRR, mean latency.",
-        "Hybrid precision@5 ≥ max(bm25, vector) on the seeded set.",
-        "Runner usable locally and from CI."
-      ],
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "eval-in-ci",
-      "name": "Eval Runs in CI",
-      "description": "GitHub Actions workflow runs npm run check, npm test, and npm run eval on PRs. Fails the build if hybrid precision@5 drops below the committed baseline.",
-      "status": "pending",
-      "phase": "D. Quality Measurement",
-      "acceptance": [
-        ".github/workflows/ci.yml present and triggers on PR + main.",
-        "Job runs type check, tests, and eval against committed baseline.",
-        "Baseline regression fails the workflow with a clear message.",
-        "First green run on main is the evidence."
-      ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Added sourceBadge() helper to src/renderer/components/ConversationHistory.tsx that renders color-coded badges per citation: 'Hybrid' (purple) when sources includes both bm25 and vector, 'BM25 #N' (blue) for BM25-only, 'Vector #N' (green) for vector-only. Badge sits between confidence percentage and document title in each expanded citation row. TypeScript compiles 0 errors, Vite builds 35 modules. Click-through to source chunk preserved — no structural changes to citation layout.",
+      "testedAt": "2026-06-29T02:00:00Z"
     },
     {
       "id": "env-config",
@@ -607,6 +563,50 @@
         "Green = healthy, yellow = checking, red = unhealthy/disabled.",
         "Tooltip shows model name + latency on hover.",
         "Screenshot in feature evidence."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "golden-eval-set",
+      "name": "Golden Q&A Eval Set",
+      "description": "test/fixtures/golden-qa.json with ≥10 question / expected-chunk-id pairs over data/sample-documents. Schema validated and committed. Used by both retrieval eval and answer-quality eval.",
+      "status": "pending",
+      "phase": "D. Quality Measurement",
+      "acceptance": [
+        "≥10 entries with {question, expectedChunkIds[], notes?}.",
+        "All expectedChunkIds resolvable from current sample-documents after re-indexing.",
+        "JSON schema validated by a small loader/test."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "eval-runner",
+      "name": "Retrieval Eval Runner",
+      "description": "scripts/eval-retrieval.ts runs each golden query through BM25, vector, and hybrid; computes precision@5, MRR, and mean latency. Writes eval-results.json and prints a table to stdout.",
+      "status": "pending",
+      "phase": "D. Quality Measurement",
+      "acceptance": [
+        "Runner exits 0 on success and non-zero on regression vs committed baseline.",
+        "eval-results.json contains per-mode precision@5, MRR, mean latency.",
+        "Hybrid precision@5 ≥ max(bm25, vector) on the seeded set.",
+        "Runner usable locally and from CI."
+      ],
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "eval-in-ci",
+      "name": "Eval Runs in CI",
+      "description": "GitHub Actions workflow runs npm run check, npm test, and npm run eval on PRs. Fails the build if hybrid precision@5 drops below the committed baseline.",
+      "status": "pending",
+      "phase": "D. Quality Measurement",
+      "acceptance": [
+        ".github/workflows/ci.yml present and triggers on PR + main.",
+        "Job runs type check, tests, and eval against committed baseline.",
+        "Baseline regression fails the workflow with a clear message.",
+        "First green run on main is the evidence."
       ],
       "evidence": null,
       "testedAt": null
