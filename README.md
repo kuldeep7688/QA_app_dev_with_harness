@@ -1,71 +1,89 @@
-# Knowledge Base - Grounded Q&A with Citations
+# Knowledge Base — Grounded Q&A with Hybrid Retrieval
 
-A desktop application for managing a personal knowledge base. Import text and Markdown documents, index them into searchable chunks, and ask questions with grounded answers backed by citations.
+A desktop application for managing a personal knowledge base. Import text and Markdown documents, index them into searchable chunks with BM25 + vector embeddings, and ask questions with grounded answers backed by citations and dynamic confidence scores.
 
 ## Features
 
 ### Document Management
-- **Import documents** - Add `.txt` and `.md` files via native file picker
-- **File validation** - Automatic existence check and 10 MB size limit
-- **Rich metadata** - View title, filename, size, import date, word count, line count, and indexing status
-- **Content viewing** - Browse full document content and chunk details
-- **Document deletion** - Remove documents and all associated data
+- **Import documents** — Add `.txt` and `.md` files via native Electron file picker
+- **File validation** — Existence check and 10 MB size limit
+- **Rich metadata** — Title, filename, size, import date, word count, line count, file type, and indexing status
+- **Content viewing** — Browse full document content with chunk details
+- **Document deletion** — Removes documents and all associated data (cascading SQLite deletes)
 
 ### Text Indexing
-- **Smart chunking** - Splits documents into ~500-character chunks at paragraph boundaries
-- **Chunk metadata** - Tracks character count and word count per chunk
-- **Status tracking** - Monitor indexing progress per document and across the library
-- **Batch indexing** - Index individual documents or the entire library at once
-- **Progress indicators** - Real-time status updates in sidebar and status bar
+- **Smart chunking** — Splits documents into ~500-character chunks at paragraph boundaries
+- **Chunk metadata** — Tracks character count and word count per chunk
+- **Status tracking** — Monitor indexing progress per document and across the library
+- **Batch indexing** — Index individual documents or the entire library at once
+- **Progress indicators** — Real-time status updates in sidebar and status bar
+
+### Hybrid Retrieval (BM25 + Vector Embeddings)
+- **BM25 keyword search** — SQLite FTS5 with `porter+unicode61` tokenizer and `bm25()` ranking
+- **Vector semantic search** — `sqlite-vec` extension with 384-dim embeddings via `all-MiniLM-L6-v2`
+- **Reciprocal Rank Fusion** — Merges BM25 and vector results with configurable RRF constant (k=60 default)
+- **Three retrieval modes** — Hybrid (default), BM25-only, or vector-only, switchable at runtime via Settings panel
+- **Local embeddings** — All embeddings computed locally via `@xenova/transformers` (no network calls, ~25 MB model)
+- **Rebuild embeddings** — One-click re-embedding of the entire library with progress feedback
 
 ### Grounded Q&A with Citations
-- **Natural language queries** - Ask questions about your document library
-- **Cited answers** - Every answer includes references to specific document chunks
-- **Confidence scores** - 0.85 with citations, 0.30 without (reliability indicator)
-- **8 mock patterns** - Covers architecture, import, indexing, retrieval, meetings, logging, feedback, and clean state topics
-- **Fast responses** - Query latency typically under 500ms
-- **Persistent history** - Full Q&A history saved across sessions
+- **Natural language queries** — Ask questions about your document library
+- **Cited answers** — Every answer includes references to specific document chunks with BM25 and vector rank badges
+- **Dynamic confidence scores** — Derived from fused score distribution (top score, gap to runner-up, both-sources bonus)
+- **8 mock answer patterns** — Covers architecture, import, indexing, retrieval, meetings, logging, feedback, and clean state topics
+- **Fast responses** — Query latency typically under 500ms end-to-end
+- **Persistent history** — Full Q&A history saved to SQLite across sessions
 
 ### Conversation History
-- **Chat-style interface** - User questions (purple, right-aligned) and assistant answers (dark, left-aligned)
-- **Expandable citations** - View supporting chunks with document title, chunk index, and excerpt
-- **Confidence indicators** - Color-coded (green/yellow/red) reliability markers
-- **Timestamps** - Track when each exchange occurred
-- **Clear history** - Reset conversation with confirmation dialog
+- **Chat-style interface** — User questions (purple, right-aligned) and assistant answers (dark, left-aligned)
+- **Expandable citations** — View supporting chunks with document title, chunk index, BM25/vector rank badges, and excerpt
+- **Confidence indicators** — Color-coded (green/yellow/red) reliability markers
+- **Timestamps** — Track when each exchange occurred
+- **Clear history** — Reset conversation with confirmation dialog
+
+### Retrieval Settings
+- **Mode selector** — Switch between hybrid, BM25-only, and vector-only retrieval
+- **Configurable parameters** — topK (results returned), topN (candidates per source), RRF constant
+- **Embeddings toggle** — Enable/disable vector embeddings per query
+- **Runtime activation** — Changes take effect on the very next question (no restart needed)
+- **Validation** — Invalid values rejected with WARN log and ignored
 
 ### Feedback Collection
-- **Thumbs up/down** - Rate Q&A responses directly in the conversation history
-- **Persistent feedback** - All ratings saved across sessions
-- **Detailed entries** - Includes Q&A timestamp, question, rating, optional comment, and submission time
+- **Thumbs up/down** — Rate Q&A responses directly in the conversation history
+- **Persistent feedback** — All ratings saved to SQLite across sessions
+- **Detailed entries** — Includes Q&A timestamp, question, rating, optional comment, and submission time
 
 ### Clean State Reset
-- **One-click reset** - Clear all data from the application header
-- **Confirmation dialog** - Prevents accidental data loss
-- **Complete cleanup** - Removes documents, chunks, Q&A history, and feedback
-- **Fresh start** - Returns app to initial empty state
+- **One-click reset** — Clear all data from the application header
+- **Confirmation dialog** — Prevents accidental data loss
+- **Complete cleanup** — Removes entire data directory (SQLite, content, documents, settings)
+- **Fresh start** — Returns app to initial empty state
 
-### Full Persistence
-- **Automatic saving** - All data persists across application restarts
-- **Auto-load on startup** - Document list loads automatically
-- **Local storage** - Data stored in platform-specific user data directory
-- **Four data files** - `documents-meta.json`, `qa-history.json`, `feedback.json`, `index-meta.json`
+### Full SQLite Persistence
+- **Single database file** — All data in `index.db` with WAL journaling and foreign key constraints
+- **Automatic saving** — Every operation persists immediately
+- **Auto-load on startup** — Document list and Q&A history load automatically
+- **Local storage** — Data stored in platform-specific user data directory
+- **Six tables** — `documents`, `chunks`, `chunks_fts` (FTS5), `chunks_vec` (vector), `qa_history`, `feedback`
+- **Versioned migrations** — Schema version tracked in `schema_meta` table, idempotent migration runner
 
 ### Real-Time Status Bar
-- **Index status** - Shows idle, indexing, ready, or error state
-- **Color-coded indicator** - Visual dot (grey/yellow/green/red)
-- **Document counts** - Total and indexed document counts
-- **Last activity** - Timestamp of most recent operation
+- **Index status** — Shows idle, indexing, ready, or error state
+- **Color-coded indicator** — Visual dot (grey/yellow/green/red)
+- **Document counts** — Total and indexed document counts
+- **Last activity** — Timestamp of most recent operation
 
 ## Architecture
 
 Built with modern web technologies and Electron security best practices:
 
-- **Electron** - Desktop application framework with secure IPC
-- **TypeScript** - Type-safe codebase with strict mode
-- **React 18** - Modern UI with hooks and functional components
-- **Vite** - Fast bundling and hot module replacement
-- **Service layer** - Clean separation with dependency injection
-- **Structured logging** - JSON logs with timestamps, levels, and service tags
+- **Electron** — Desktop application framework with secure IPC
+- **TypeScript** — Type-safe codebase with strict mode
+- **React 18** — Modern UI with hooks and functional components
+- **Vite** — Fast bundling and hot module replacement
+- **SQLite** — Embedded database via `better-sqlite3` with FTS5 + `sqlite-vec` extensions
+- **Service layer** — Clean separation with dependency injection
+- **Structured logging** — JSON logs with timestamps, levels, and service tags
 
 ### Layer Structure
 
@@ -77,8 +95,35 @@ Preload Script (contextBridge)
 Main Process (IPC handlers)
     ↕ Service method calls
 Services Layer (business logic)
-    ↕ Filesystem operations
-PersistenceService (JSON/text I/O)
+    ├─ PersistenceService    — JSON/text I/O, clean state reset
+    ├─ DocumentService       — Document CRUD, metadata extraction
+    ├─ IndexingService       — Chunking, SQLite inserts, embedding generation
+    ├─ EmbeddingService      — all-MiniLM-L6-v2 (384-dim), embed/embedBatch
+    ├─ Retriever             — hybridSearch (BM25 + vector + RRF)
+    ├─ QaService             — Question answering with dynamic confidence
+    ├─ SettingsService       — Retrieval settings CRUD with validation
+    └─ Logger                — Structured JSON logging
+```
+
+### Data Storage
+
+```
+~/.config/knowledge-base/knowledge-base-data/  (Linux)
+~/Library/Application Support/knowledge-base/knowledge-base-data/  (macOS)
+%APPDATA%/knowledge-base/knowledge-base-data/  (Windows)
+
+index.db              # SQLite database (WAL mode, foreign keys ON)
+  ├─ documents         # Document metadata
+  ├─ chunks            # Text chunks linked to documents (FK CASCADE)
+  ├─ chunks_fts        # FTS5 full-text index (BM25 ranking)
+  ├─ chunks_vec        # vec0 virtual table (384-dim embeddings)
+  ├─ qa_history        # Q&A interaction log
+  ├─ feedback          # User feedback entries
+  └─ schema_meta       # Migration version tracking
+content/<doc-id>.txt   # Extracted text content
+documents/<filename>   # Original file copies
+settings.json          # RetrievalSettings (mode, topK, topN, rrfK, embeddingsEnabled)
+legacy/                # One-time backup of pre-SQLite JSON files
 ```
 
 ## Getting Started
@@ -87,6 +132,7 @@ PersistenceService (JSON/text I/O)
 
 - Node.js 18+ and npm
 - Linux, macOS, or Windows
+- C++ build tools (for native module compilation)
 
 ### Installation
 
@@ -99,6 +145,7 @@ bash init.sh
 
 This will:
 - Install dependencies
+- Rebuild native modules (`better-sqlite3`)
 - Run type checks
 - Build the project
 - Verify harness files
@@ -121,7 +168,7 @@ npm run check
 # Production build
 npm run build
 
-# Run tests
+# Run tests (rebuilds native modules for Node.js first)
 npm test
 
 # Watch mode for tests
@@ -134,23 +181,23 @@ This project includes a comprehensive development harness for AI agents and huma
 
 ### Core Files
 
-- **AGENTS.md** - Startup rules, layer boundaries, conventions, and definition of done
-- **feature_list.json** - Current status of all 17 features with evidence and timestamps
-- **init.sh** - Project initialization and verification script
+- **AGENTS.md** — Startup rules, layer boundaries, conventions, and definition of done
+- **feature_list.json** — Current status of all 36 features with evidence and timestamps
+- **init.sh** — Project initialization and verification script
 
 ### Documentation
 
-- **docs/ARCHITECTURE.md** - Electron layers, data flow, IPC channels, and storage layout
-- **docs/PRODUCT.md** - Feature requirements and user-facing behavior
-- **docs/RELIABILITY.md** - Logging, observability, clean state, and benchmarking
+- **docs/ARCHITECTURE.md** — Electron layers, data flow, IPC channels (32 total), and storage layout
+- **docs/PRODUCT.md** — Feature requirements and user-facing behavior, including planned LLM integration
+- **docs/RELIABILITY.md** — Logging, observability, clean state, and benchmarking
 
 ### Quality Control
 
-- **clean-state-checklist.md** - Verification checklist for testing cycles
-- **evaluator-rubric.md** - Grading criteria for code quality assessment
-- **quality-document.md** - Comprehensive quality assessment (97/100, Grade A+)
-- **session-handoff.md** - Context for resuming work across sessions
-- **agent-progress.md** - Implementation log with learnings and decisions
+- **clean-state-checklist.md** — Verification checklist for testing cycles
+- **evaluator-rubric.md** — Grading criteria for code quality assessment
+- **quality-document.md** — Comprehensive quality assessment (97/100, Grade A+)
+- **session-handoff.md** — Context for resuming work across sessions
+- **agent-progress.md** — Implementation log with learnings and decisions
 
 ### Performance & Maintenance
 
@@ -164,10 +211,10 @@ bash scripts/benchmark.sh
 
 **What it measures:**
 
-- **Import throughput** - Copies 3 sample documents and reports files/sec
-- **Indexing speed** - Estimates chunk count and reports chunks/sec
-- **Query latency** - Processes 5 test queries and reports avg latency
-- **Data integrity** - Validates imported files match originals byte-for-byte
+- **Import throughput** — Copies 3 sample documents and reports files/sec
+- **Indexing speed** — Estimates chunk count and reports chunks/sec
+- **Query latency** — Processes 5 test queries and reports avg latency
+- **Data integrity** — Validates imported files match originals byte-for-byte
 
 **Example output:**
 
@@ -190,11 +237,11 @@ bash scripts/cleanup-scanner.sh
 
 **What it checks:**
 
-- **Orphaned content files** - Content without metadata
-- **Dangling chunks** - Chunks without index entries
-- **Missing content** - Metadata without content files
-- **Inconsistent metadata** - Indexed status without chunks
-- **Stale Q&A references** - History citing deleted documents
+- **Orphaned content files** — Content without metadata
+- **Dangling chunks** — Chunks without index entries
+- **Missing content** — Metadata without content files
+- **Inconsistent metadata** — Indexed status without chunks
+- **Stale Q&A references** — History citing deleted documents
 
 **Example output:**
 
@@ -227,10 +274,10 @@ All services emit structured JSON logs for runtime observability:
 ```
 
 **Log levels:**
-- DEBUG - Routine data access
-- INFO - Significant events
-- WARN - Non-critical issues
-- ERROR - Failures
+- DEBUG — Routine data access
+- INFO — Significant events
+- WARN — Non-critical issues
+- ERROR — Failures
 
 **Configure log level:**
 
@@ -242,29 +289,50 @@ LOG_LEVEL=ERROR npm run dev   # ERROR only
 
 ## Project Status
 
-All 17 features are complete and verified:
+**32 of 36 features complete.**
 
-| Feature | Status |
-|---------|--------|
-| Window Launch | ✓ pass |
-| Document List Panel | ✓ pass |
-| Question Panel | ✓ pass |
-| Data Directory | ✓ pass |
-| Document Import | ✓ pass |
-| Document Detail with Content | ✓ pass |
-| Basic Persistence | ✓ pass |
-| Document Chunking | ✓ pass |
-| Metadata Extraction | ✓ pass |
-| Indexing Status in StatusBar | ✓ pass |
-| Grounded Q&A with Citations | ✓ pass |
-| Structured JSON Logging | ✓ pass |
-| Conversation History | ✓ pass |
-| Feedback Collection | ✓ pass |
-| Clean State Reset | ✓ pass |
-| Full Persistence | ✓ pass |
-| Status Bar | ✓ pass |
+| Phase | Feature | Status |
+|-------|---------|--------|
+| Core | Window Launch | ✓ pass |
+| Core | Document List Panel | ✓ pass |
+| Core | Question Panel | ✓ pass |
+| Core | Data Directory | ✓ pass |
+| Core | Document Import | ✓ pass |
+| Core | Document Detail with Content | ✓ pass |
+| Core | Basic Persistence | ✓ pass |
+| Core | Document Chunking | ✓ pass |
+| Core | Metadata Extraction | ✓ pass |
+| Core | Indexing Status in StatusBar | ✓ pass |
+| Core | Grounded Q&A with Citations | ✓ pass |
+| Core | Structured JSON Logging | ✓ pass |
+| Core | Conversation History | ✓ pass |
+| Core | Feedback Collection | ✓ pass |
+| Core | Clean State Reset | ✓ pass |
+| Core | Full Persistence | ✓ pass |
+| Core | Status Bar | ✓ pass |
+| Tooling | Benchmark Scripts | ✓ pass |
+| Tooling | Cleanup Scanner | ✓ pass |
+| Tooling | Complete Harness | ✓ pass |
+| A. Foundation | Embedded SQLite Database | ✓ pass |
+| A. Foundation | Versioned Schema Migrations | ✓ pass |
+| A. Foundation | Legacy JSON → SQLite Import | ✓ pass |
+| B. Indexing | FTS5 BM25 Keyword Index | ✓ pass |
+| B. Indexing | sqlite-vec Vector Extension | ✓ pass |
+| B. Indexing | Local Embedding Service | ✓ pass |
+| B. Indexing | Indexing to SQLite + Vectors | ✓ pass |
+| B. Indexing | Rebuild Embeddings Command | ✓ pass |
+| C. Hybrid Retrieval | Hybrid Retriever (BM25 + Vector + RRF) | ✓ pass |
+| C. Hybrid Retrieval | QaService Wired to Hybrid Retriever | ✓ pass |
+| C. Hybrid Retrieval | Retrieval Debug IPC | ✓ pass |
+| E. Settings & UX | Retrieval Settings | ✓ pass |
+| E. Settings & UX | Citation Source Badges | ⏳ pending |
+| D. Quality | Golden Q&A Eval Set | ⏳ pending |
+| D. Quality | Retrieval Eval Runner | ⏳ pending |
+| D. Quality | Eval Runs in CI | ⏳ pending |
 
-**Harness completeness:** 13/13 files present
+**Remaining phases (planned):** F. LLM Foundation (3 features), G. Answer Generation (2 features), H. UX & Quality (3 features)
+
+**Harness completeness:** 15/15 files present
 
 **Benchmark scripts:** Fully functional
 
@@ -276,43 +344,18 @@ All 17 features are complete and verified:
 
 - **Import throughput:** 10+ files per batch under 1 second
 - **Indexing speed:** 100+ chunks per second
-- **Query latency:** Under 500ms per question
+- **Embedding throughput:** 750+ texts per second (batch)
+- **Query latency:** Under 500ms per question (retrieval + answer)
 - **Citation accuracy:** Top 2 chunks must be relevant
 
 ## Constraints
 
 - Maximum file size: 10 MB
 - Supported formats: `.txt`, `.md`
-- Q&A uses mock patterns (no LLM integration)
+- Q&A uses mock patterns (no LLM integration — planned)
 - All data is local (no network requests)
+- Embeddings computed locally (no API calls)
 - Logs to console only (no file-based logging)
-
-## Data Storage
-
-All data is stored in the platform-specific user data directory:
-
-```
-~/.config/knowledge-base/knowledge-base-data/  (Linux)
-~/Library/Application Support/knowledge-base/knowledge-base-data/  (macOS)
-%APPDATA%/knowledge-base/knowledge-base-data/  (Windows)
-```
-
-**Directory structure:**
-
-```
-knowledge-base-data/
-  documents-meta.json     # Document metadata array
-  content/
-    <doc-id>.txt          # Extracted text content
-  documents/
-    <filename>            # Original file copies
-  chunks/
-    <doc-id>.json         # Chunk array per document
-  index/
-    index-meta.json       # Document ID to chunk ID mapping
-  qa-history.json         # Q&A interaction log
-  feedback.json           # User feedback entries
-```
 
 ## License
 
