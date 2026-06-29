@@ -330,7 +330,7 @@
       "id": "retrieval-settings",
       "name": "Retrieval Settings",
       "description": "<dataDir>/settings.json with retrievalMode, topK, topN, rrfK, embeddingsEnabled. Minimal settings panel in renderer (or Settings button) to edit at runtime.",
-      "status": "pending",
+      "status": "pass",
       "phase": "E. Settings & UX",
       "acceptance": [
         "settings.json created with sensible defaults on first launch.",
@@ -338,8 +338,8 @@
         "Changing mode in UI affects the very next qa:ask without restart.",
         "Invalid values rejected with WARN log and ignored."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Implemented complete retrieval settings feature: (1) Added RetrievalSettings interface and settings:get/settings:set IPC channels to src/shared/types.ts. (2) Created SettingsService (src/services/settings-service.ts) with in-memory cache, readJson/writeJson persistence to <dataDir>/settings.json, sensible defaults (hybrid mode, topK=5, topN=20, rrfK=60, embeddingsEnabled=true), and validation that rejects invalid values (bad mode, negative/zero/float numbers for numeric fields, non-boolean for embeddingsEnabled) with WARN log and ignored. (3) Updated QaService to accept a getSettings callback and pass retrievalMode/topK/topN/rrfK as opts to hybridSearch and debugSearch — changing mode immediately affects the next qa:ask without restart. (4) Registered IPC handlers at DEBUG/INFO log levels. (5) Exposed settings.get/settings.set in preload and renderer types. (6) Created SettingsPanel UI component (modal overlay with dropdown for mode, number inputs for topK/topN/rrfK, checkbox for embeddingsEnabled, Save/Cancel buttons). (7) Wired Settings button in App.tsx header. (8) 31 integration tests all PASS covering: defaults, persistence across instances, update, disk reload, cache, invalid value rejection (6 invalid types: mode, negative topK, zero topN, negative rrfK, float topK, non-boolean), partial update preservation, getDefaults isolation, corrupted file fallback. (9) TypeScript compiles 0 errors. (10) Build succeeds (35 modules). (11) docs/ARCHITECTURE.md updated with settings IPC table and SettingsService in services layer.",
+      "testedAt": "2026-06-29T01:34:00Z"
     },
     {
       "id": "citation-source-badge",

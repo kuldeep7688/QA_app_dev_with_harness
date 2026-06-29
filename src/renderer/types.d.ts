@@ -36,6 +36,10 @@ declare global {
       app: {
         resetData: () => Promise<void>;
       };
+      settings: {
+        get: () => Promise<import('../shared/types').RetrievalSettings>;
+        set: (partial: Partial<import('../shared/types').RetrievalSettings>) => Promise<import('../shared/types').RetrievalSettings>;
+      };
     };
   }
 }

@@ -293,10 +293,12 @@ Services (post-migration)
   ├─ indexing-service.ts    -- chunks → SQLite + chunks_fts (triggers) + chunks_vec
   │                            stores vec_rowid in chunks table for join
   ├─ qa-service.ts          -- calls retriever; confidence from fused scores
+  ├─ settings-service.ts    -- RetrievalSettings CRUD with <dataDir>/settings.json
+  │                            cache, validation, and WARN logs for invalid values
   └─ persistence-service.ts -- retained for raw content/<id>.txt files only
 ```
 
-### IPC Channels (25 total — 14 original + 11 SQLite/hybrid additions)
+### IPC Channels (27 total — 14 original + 11 SQLite/hybrid + 2 settings)
 
 | Channel | Direction | Handler | Purpose |
 |---------|-----------|---------|---------|
@@ -319,7 +321,8 @@ Services (post-migration)
 | `app:reset` | R -> M | PersistenceService.resetAll | Reset all data |
 | `app:status` | R -> M | IndexingService.getStatus | Get app status |
 | `dialog:show-open` | R -> M | dialog.showOpenDialog | File picker |
-| `settings:get` / `settings:set` | R -> M | planned for Phase E | Settings |
+| `settings:get` | R -> M | SettingsService.get | Get retrieval settings |
+| `settings:set` | R -> M | SettingsService.set | Update retrieval settings (validates, logs WARN on invalid) |
 
 ### Migration & Backward Compatibility
 
@@ -335,7 +338,7 @@ knowledge-base-data/
   index.db               # SQLite (chunks, FTS, vectors, qa_history, feedback)
   content/<doc-id>.txt   # raw extracted text (unchanged)
   documents/<filename>   # original file copies (unchanged)
-  settings.json          # retrieval/UX settings
+  settings.json          # RetrievalSettings (mode, topK, topN, rrfK, embeddingsEnabled)
   legacy/                # one-time backup of pre-SQLite JSON
 ```
 

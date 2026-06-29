@@ -84,9 +84,21 @@ export const IPC_CHANNELS = {
   // Dialog
   SHOW_OPEN_DIALOG: 'dialog:show-open',
 
+  // Settings
+  GET_SETTINGS: 'settings:get',
+  SET_SETTINGS: 'settings:set',
+
   // App
   RESET_DATA: 'app:reset',
 } as const;
+
+export interface RetrievalSettings {
+  retrievalMode: 'hybrid' | 'bm25' | 'vector';
+  topK: number;
+  topN: number;
+  rrfK: number;
+  embeddingsEnabled: boolean;
+}
 
 export interface FeedbackEntry {
   id: string;

@@ -6,6 +6,7 @@ import { ImportPanel } from './components/ImportPanel';
 import { StatusBar } from './components/StatusBar';
 import { ConversationHistory } from './components/ConversationHistory';
 import { ResetDialog } from './components/ResetDialog';
+import { SettingsPanel } from './components/SettingsPanel';
 import { Document, AppStatus, QAHistory } from './shared-types';
 
 export function App() {
@@ -22,6 +23,7 @@ export function App() {
   const [showImport, setShowImport] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Verify preload loaded
   useEffect(() => {
@@ -176,6 +178,20 @@ export function App() {
             History {history.length > 0 ? `(${history.length})` : ''}
           </button>
           <button
+            onClick={() => setShowSettings(true)}
+            style={{
+              padding: '6px 14px',
+              background: showSettings ? '#533483' : '#0f3460',
+              color: '#e0e0e0',
+              border: '1px solid #1a1a4e',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            Settings
+          </button>
+          <button
             onClick={() => setShowResetDialog(true)}
             style={{
               padding: '6px 14px',
@@ -205,6 +221,10 @@ export function App() {
           </button>
         </div>
       </header>
+
+      {showSettings && (
+        <SettingsPanel onClose={() => setShowSettings(false)} />
+      )}
 
       {showResetDialog && (
         <ResetDialog

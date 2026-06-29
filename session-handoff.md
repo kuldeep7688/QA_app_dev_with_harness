@@ -214,7 +214,22 @@
 - Created test/retrieval-debug.test.ts with 11 tests all PASS
 - TypeScript compiles 0 errors, build succeeds
 
-**Feature Status Update:** 31 features complete! (36 total)
+**Feature Status Update:** 32 features complete! (36 total)
+
+## Recently Completed (2026-06-29)
+
+**Retrieval Settings** (Phase E. Settings & UX) — 2026-06-29
+- Created `src/services/settings-service.ts` with `SettingsService` class: in-memory cache, `readJson/writeJson` to `<dataDir>/settings.json`, sensible defaults (hybrid, topK=5, topN=20, rrfK=60, embeddingsEnabled=true)
+- Validation rejects invalid values with WARN log: bad mode, negative/zero/float numbers, non-boolean
+- Added `RetrievalSettings` interface and `settings:get`/`settings:set` IPC channels to `src/shared/types.ts`
+- Updated `QaService` to accept `getSettings` callback; passes `retrievalMode`/`topK`/`topN`/`rrfK` as opts to `hybridSearch` and `debugSearch`
+- Registered IPC handlers in `src/main/ipc-handlers.ts`; injected into `main.ts` via `SettingsService`
+- Exposed `settings.get/settings.set` in preload and renderer type declarations
+- Created `SettingsPanel` modal overlay UI component (mode dropdown, number inputs, checkbox, Save/Cancel)
+- Added Settings button in App.tsx header
+- 31 integration tests covering: defaults, persistence across instances, update, disk reload, cache, invalid value rejection (6 types), partial updates, getDefaults isolation, corrupted file fallback
+- TypeScript compiles 0 errors, build succeeds (35 modules)
+- `docs/ARCHITECTURE.md` updated with settings IPC table and services layer
 
 ## Next Features to Implement
 
@@ -223,8 +238,7 @@
 - eval-runner - Automated precision@5 and MRR measurement
 - eval-in-ci - CI integration for regression detection
 
-**Phase E: Settings & UX (2 features)**
-- retrieval-settings - Runtime configuration for retrieval modes
+**Phase E: Settings & UX (1 feature)**
 - citation-source-badge - UI badges showing BM25/vector/hybrid sources
 
 ## If Resuming This Session
@@ -232,8 +246,8 @@
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
-4. Read `feature_list.json` to see current feature status (30/36 complete)
-5. Next: Implement **retrieval-debug-ipc** feature from Phase C
+4. Read `feature_list.json` to see current feature status (32/36 complete)
+5. Next: Implement **golden-eval-set** feature from Phase D, **citation-source-badge** from Phase E, or continue with Phase D features
 6. Testing notes:
    - Use `npx vitest run test/<test-file>.ts` to run individual tests (vitest-compatible tests only)
    - Some old test files use custom runners and are incompatible with vitest (pre-existing)

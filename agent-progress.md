@@ -2143,3 +2143,50 @@ The `qa:retrieve-debug` IPC channel that returns the three ranked lists (BM25, v
 - **Features Remaining:** 5
 - **Build Health:** ✅ Green
 - **Next Feature:** golden-eval-set (Phase D)
+
+---
+
+## Session: 2026-06-29 — Retrieval Settings (Phase E)
+
+**Feature:** retrieval-settings  
+**Status:** ✅ PASS  
+**Phase:** E. Settings & UX  
+**Duration:** ~45 minutes
+
+### Implementation
+
+**Backend:**
+1. `src/services/settings-service.ts` — NEW: SettingsService with in-memory cache, persistence via readJson/writeJson to `<dataDir>/settings.json`, sensible defaults (hybrid, topK=5, topN=20, rrfK=60, embeddingsEnabled=true)
+2. Validation rejects invalid values with WARN log (bad mode, negative/zero/float numbers, non-boolean)
+3. `src/shared/types.ts` — Added RetrievalSettings interface + settings:get/settings:set IPC channels
+4. `src/services/qa-service.ts` — Accepts getSettings callback, passes settings as opts to hybridSearch
+5. `src/main/main.ts` — Creates SettingsService, injects callback to QaService
+6. `src/main/ipc-handlers.ts` — Registered settings IPC handlers with structured logging
+7. `src/preload/preload.ts` & `src/renderer/types.d.ts` — Exposed settings API in preload bridge
+
+**Frontend:**
+8. `src/renderer/components/SettingsPanel.tsx` — NEW: Modal overlay with mode dropdown, number inputs, embeddings checkbox, Save/Cancel
+9. `src/renderer/App.tsx` — Settings button in header, showSettings state, wired SettingsPanel
+
+**Testing:**
+10. `test/settings.test.ts` — 31 integration tests: defaults, persistence, update, disk reload, cache, 6 invalid value types, partial update, getDefaults isolation, corrupted file fallback
+
+### Verification
+- TypeScript 0 errors
+- Vite build succeeds (35 modules, 164 kB)
+- 31/31 settings tests PASS
+- 67/67 vitest assertions PASS
+- init.sh — All checks passed
+- docs/ARCHITECTURE.md updated with settings IPC table
+
+### Key Learnings
+1. Cache + persistence pattern avoids disk I/O on every Q&A call
+2. Callback injection (getSettings function) maintains loose coupling vs direct service reference
+3. Partial update semantics: set({topK:10}) preserves all other settings
+
+### Status Summary
+
+- **Features Complete:** 32/36
+- **Features Remaining:** 4 (citation-source-badge, golden-eval-set, eval-runner, eval-in-ci)
+- **Build Health:** ✅ Green
+- **Next Feature:** citation-source-badge or golden-eval-set

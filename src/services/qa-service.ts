@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { QAResponse, QAHistory, Citation, FeedbackEntry } from '../shared/types';
+import { QAResponse, QAHistory, Citation, FeedbackEntry, RetrievalSettings } from '../shared/types';
 import { logger } from './logger';
 import { hybridSearch, debugSearch, DebugSearchResult } from './retriever';
 import { isVectorExtensionLoaded } from './db';
@@ -36,20 +36,36 @@ const MOCK_PATTERNS: Array<{
 export class QaService {
   private db: Database.Database;
   private embedFn: (text: string) => Promise<Float32Array>;
+  private getSettings: () => RetrievalSettings;
 
-  constructor(db: Database.Database, embedFn: (text: string) => Promise<Float32Array>) {
+  constructor(
+    db: Database.Database,
+    embedFn: (text: string) => Promise<Float32Array>,
+    getSettings?: () => RetrievalSettings,
+  ) {
     this.db = db;
     this.embedFn = embedFn;
+    this.getSettings = getSettings ?? (() => ({
+      retrievalMode: isVectorExtensionLoaded() ? 'hybrid' : 'bm25',
+      topK: 5,
+      topN: 20,
+      rrfK: 60,
+      embeddingsEnabled: true,
+    }));
   }
 
   /** Ask a question and get a grounded answer with citations. */
   async ask(question: string): Promise<QAResponse> {
     log.info('Processing question', { question: question.substring(0, 100) });
 
+    const settings = this.getSettings();
+
     // Run hybrid retrieval (BM25 + vector if available)
     const results = await hybridSearch(this.db, question, this.embedFn, {
-      mode: isVectorExtensionLoaded() ? 'hybrid' : 'bm25',
-      topK: 5,
+      mode: isVectorExtensionLoaded() ? settings.retrievalMode : 'bm25',
+      topK: settings.topK,
+      topN: settings.topN,
+      rrfK: settings.rrfK,
     });
 
     // Get document metadata for citation titles
@@ -106,9 +122,14 @@ export class QaService {
   async retrieveDebug(question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }): Promise<DebugSearchResult> {
     log.debug('Retrieval debug requested', { question: question.substring(0, 100), mode: opts?.mode });
 
+    const settings = this.getSettings();
+    const mode = opts?.mode ?? (isVectorExtensionLoaded() ? settings.retrievalMode : 'bm25');
+
     const results = await debugSearch(this.db, question, this.embedFn, {
-      mode: opts?.mode ?? (isVectorExtensionLoaded() ? 'hybrid' : 'bm25'),
-      topK: 5,
+      mode,
+      topK: settings.topK,
+      topN: settings.topN,
+      rrfK: settings.rrfK,
     });
 
     log.debug('Retrieval debug completed', {

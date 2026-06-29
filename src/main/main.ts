@@ -5,6 +5,7 @@ import { DocumentService } from '../services/document-service';
 import { QaService } from '../services/qa-service';
 import { IndexingService } from '../services/indexing-service';
 import { PersistenceService } from '../services/persistence-service';
+import { SettingsService } from '../services/settings-service';
 import { initDatabase } from '../services/db';
 import { runMigrations } from '../services/migrations/runner';
 import { LegacyImporter } from '../services/legacy-importer';
@@ -91,16 +92,20 @@ function initializeServices() {
     log.info('Legacy import completed successfully');
   }
   
+  // Initialize settings service
+  const settingsService = new SettingsService(persistence);
+
   // Initialize services with database instance
   const documentService = new DocumentService(persistence, db);
   const indexingService = new IndexingService(persistence, db);
-  const qaService = new QaService(db, embed);
+  const qaService = new QaService(db, embed, () => settingsService.get());
 
   registerIpcHandlers(ipcMain, {
     documentService,
     indexingService,
     qaService,
     persistenceService: persistence,
+    settingsService,
   });
 }
 

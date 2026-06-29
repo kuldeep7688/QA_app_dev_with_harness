@@ -23,6 +23,8 @@ const IPC_CHANNELS = {
   GET_STATUS: 'app:status',
   SHOW_OPEN_DIALOG: 'dialog:show-open',
   RESET_DATA: 'app:reset',
+  GET_SETTINGS: 'settings:get',
+  SET_SETTINGS: 'settings:set',
 } as const;
 
 console.log('[Preload] IPC_CHANNELS:', IPC_CHANNELS);
@@ -66,6 +68,10 @@ const api = {
   },
   app: {
     resetData: () => ipcRenderer.invoke(IPC_CHANNELS.RESET_DATA),
+  },
+  settings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
+    set: (partial: Partial<import('../shared/types').RetrievalSettings>) => ipcRenderer.invoke(IPC_CHANNELS.SET_SETTINGS, partial),
   },
 };
 

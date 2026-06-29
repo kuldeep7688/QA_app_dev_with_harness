@@ -3,6 +3,7 @@ import { DocumentService } from '../services/document-service';
 import { IndexingService } from '../services/indexing-service';
 import { QaService } from '../services/qa-service';
 import { PersistenceService } from '../services/persistence-service';
+import { SettingsService } from '../services/settings-service';
 import { IPC_CHANNELS } from '../shared/types';
 import { logger } from '../services/logger';
 import { clearAllData } from '../services/db';
@@ -14,10 +15,11 @@ export interface Services {
   indexingService: IndexingService;
   qaService: QaService;
   persistenceService: PersistenceService;
+  settingsService: SettingsService;
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
-  const { documentService, indexingService, qaService, persistenceService } = services;
+  const { documentService, indexingService, qaService, persistenceService, settingsService } = services;
 
   // Document operations
   ipcMain.handle(IPC_CHANNELS.LIST_DOCUMENTS, async () => {
@@ -138,6 +140,17 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
       win?.webContents.send(IPC_CHANNELS.INDEXING_PROGRESS, { processed, total });
     };
     return indexingService.rebuildEmbeddings(sendProgress);
+  });
+
+  // Settings
+  ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, async () => {
+    log.debug('IPC received', { channel: IPC_CHANNELS.GET_SETTINGS });
+    return settingsService.get();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SET_SETTINGS, async (_event, partial: Partial<import('../shared/types').RetrievalSettings>) => {
+    log.info('IPC received', { channel: IPC_CHANNELS.SET_SETTINGS, partial });
+    return settingsService.set(partial);
   });
 
   // App reset
