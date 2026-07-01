@@ -1,6 +1,6 @@
 # Session Handoff
 
-## Current State (2026-06-28)
+## Current State (2026-06-29)
 
 ### Recently Completed (2026-06-28)
 
@@ -98,8 +98,15 @@
 | reindex-embeddings | ✅ pass |
 | hybrid-retriever | ✅ pass |
 | qa-uses-hybrid | ✅ pass |
+| retrieval-debug | ✅ pass |
+| retrieval-settings | ✅ pass |
+| citation-source-badge | ✅ pass |
+| env-config | ✅ pass |
+| llm-provider-interface | ✅ pass |
+| nvidia-llm-provider | ✅ pass |
+| llm-health-check | ✅ pass |
 
-**30 features complete!** (20 original + 4 SQLite/migration + 6 Phase B/C)
+**37 features complete!** (20 original + 10 Phases A-E + 7 Phase F)
 
 ### Files Modified (2026-06-28 - Hybrid Retriever Implementation)
 
@@ -213,7 +220,20 @@
 - TypeScript 0 errors, Vite builds 35 modules
 - `feature_list.json` updated with evidence
 
-**Feature Status Update:** 33 features complete! (36 total)
+**Feature Status Update:** 34 features complete! (36 total)
+
+## Recently Completed (2026-06-29)
+
+**Environment Config** (Phase F. LLM Foundation) — 2026-06-29
+- Installed dotenv@16.5.0 npm package
+- Created `.env.example` at project root with placeholder values (NVIDIA_API_KEY, NVIDIA_MODEL_NAME, NVIDIA_BASE_URL)
+- Created `src/services/env-config.ts` with `loadEnvConfig()`, `getEnvConfig()`, `isLLMEnabled()` — loads `.env` via dotenv, validates API key presence, caches config
+- Key logged only as `keyPresent: boolean` and `keyLength: integer` — never the actual value; WARN logged when key missing
+- Added `llmEnabled: boolean` to `AppStatus` in types.ts
+- Updated `IndexingService.getStatus()` to emit `llmEnabled` via `isLLMEnabled()`
+- Updated `main.ts` to call `loadEnvConfig()` before services initialize
+- 5 vitest tests all PASS: no .env → llmEnabled=false, .env values read correctly, isLLMEnabled() false when missing, defaults for missing optional values, cache integrity
+- TypeScript 0 errors, Vite builds 35 modules
 
 ## Recently Completed (2026-06-29)
 
@@ -240,18 +260,60 @@
 - TypeScript compiles 0 errors, build succeeds (35 modules)
 - `docs/ARCHITECTURE.md` updated with settings IPC table and services layer
 
+## Recently Completed (2026-06-29 — Phase F: LLM Foundation)
+
+**LLM Provider Interface** — 2026-06-29
+- Created `src/services/providers/types.ts` with `LlmProvider` interface (chat + chatStream + checkHealth), `ChatMessage`, `ChatResponse`, `StreamChunk`, `LlmOptions`, `TokenUsage` types
+- Updated QaService to accept `LlmProvider | null` via 4th constructor parameter
+- QaService uses LLM provider for answer generation when available, falls back to mock patterns when null
+- Added `buildPrompt()` to QaService that assembles system prompt with citation excerpts + user question
+- QAResponse gains `modelUsed` and `tokensUsed` fields
+
+**NVIDIA NIM Provider** — 2026-06-29
+- Created `src/services/providers/nvidia-provider.ts` with `NvidiaProvider` class implementing LlmProvider
+- Uses OpenAI SDK (`npm install openai`) configured with NVIDIA NIM base URL from env-config
+- `chat()` sends model, messages, temperature, max_tokens; parses content + usage from response
+- `chatStream()` uses async generator with `stream: true`, yielding delta chunks and final done event
+- Both accept AbortSignal via OpenAI client options
+- `checkHealth()` sends minimal "hello" chat, classifies errors: 401/403→invalid key, 429→rate limited, others→unavailable
+
+**LLM Health Check** — 2026-06-29
+- Added `llm:health` IPC channel, handler, and preload namespace
+- Added `llmStatus` ('healthy'|'unhealthy'|'disabled') and `llmModel` to AppStatus interface
+- IndexingService.getStatus() emits llmStatus and llmModel from env config
+- main.ts wires NvidiaProvider when LLM enabled, passes to ipc-handlers
+
+## Recently Completed (2026-07-01 — Phase G: Streaming, Cancel, Error Handling)
+
+### streaming-answers
+- Added `QaService.askStream(question, onChunk, signal?)` method that uses `llmProvider.chatStream()` async generator
+- Registered `qa:ask-stream` IPC handler (fire-and-forget with `requestId`), sends `qa:stream-chunk` per delta and `qa:stream-done` on completion
+- Preload exposes `qa.askStream()`, `qa.onStreamChunk()`, `qa.onStreamDone()`, `qa.cancel()`
+- QuestionPanel shows Cancel button (red) during streaming; input disabled
+- ConversationHistory shows typing cursor (▊ blink), incremental token display, error bubbles (red/tinted)
+- `activeStreams` Map tracks AbortControllers; cancel deletes from Map
+- Fallback: no LLM provider → "LLM not configured" message; no citations → refusal message
+- 16 tests all PASS: streaming yields 5 chunks in order, cancel contains `[cancelled]`, no-provider fallback, no-citations refusal, error classification (6 error classes)
+
+### cancel-request
+- `qa:cancel` IPC handler aborts the request via `AbortController`
+- `QaService.askStream()` passes `AbortSignal` to `llmProvider.chatStream()`
+- Cancel detection: provider yields "Request cancelled" error chunk or `signal.aborted` → response with `[cancelled]` suffix
+- QuestionPanel: Ask button becomes Cancel during streaming; input disabled
+- Pre-aborted signal test verifies `[cancelled]` response
+
+### llm-error-handling
+- `classifyLlmError()` function: 401/403→"Invalid API key", 429→"Rate limited", timeout→"Request timed out", 5xx→"Service unavailable", safe generic fallback
+- Error messages are predefined strings — no raw API key or response body in user-facing messages
+- Errors logged at ERROR with sanitised data
+- ConversationHistory renders errors with red background, red text, "error" status indicator
+
+### Feature Status Update: 42 features complete! (49 total)
+*Retroactive: prompt-builder and real-llm-answer now marked "pass" in feature_list.json (were missed in Phase F update)*
+
 ## Next Features to Implement (prioritized)
 
-**Immediate: Phase F-H: LLM Foundation & Answer Generation (14 features)**
-- env-config - .env file loading for NVIDIA_API_KEY
-- llm-provider-interface - Abstract LlmProvider contract
-- nvidia-llm-provider - NVIDIA NIM API integration
-- llm-health-check - Connectivity verification IPC
-- prompt-builder - Build LLM prompts from citations
-- real-llm-answer - Replace mock with real LLM
-- streaming-answers - Token-by-token streaming via IPC
-- cancel-request - AbortController mid-stream cancel
-- llm-error-handling - Error classification and user messages
+**Immediate: Phase H: UX & Quality (5 features remaining)**
 - markdown-rendering - react-markdown + remark-gfm
 - token-usage-tracking - Token counts in UI and persistence
 - llm-settings - LLM settings panel (model, temperature, etc.)
@@ -263,15 +325,30 @@
 - eval-runner - Automated precision@5 and MRR measurement
 - eval-in-ci - CI integration for regression detection
 
+### Files Modified (2026-07-01 — Phase G: Streaming, Cancel, Error Handling)
+
+- `src/services/qa-service.ts` — UPDATED: added `askStream()`, `classifyLlmError()`, import of `StreamChunk`
+- `src/main/ipc-handlers.ts` — UPDATED: added `qa:ask-stream` and `qa:cancel` handlers, `activeStreams` Map
+- `src/preload/preload.ts` — UPDATED: added `qa.askStream()`, `qa.cancel()`, `qa.onStreamChunk()`, `qa.onStreamDone()`, `STREAM_CHUNK`/`STREAM_DONE` channels
+- `src/renderer/types.d.ts` — UPDATED: added streaming API type declarations
+- `src/renderer/App.tsx` — REWRITTEN: uses streaming API, streamingEntry state, event listeners, isStreaming flag
+- `src/renderer/components/QuestionPanel.tsx` — UPDATED: `onCancel` prop, Cancel button, `isStreaming` prop, disabled input
+- `src/renderer/components/ConversationHistory.tsx` — UPDATED: `streamingEntry` prop with typing cursor, error display, token usage info, cancelled state
+- `test/llm-provider.test.ts` — UPDATED: 16 tests (10 new: askStream chunks, cancellation, mock fallback, no-citations refusal, 6 classifyLlmError tests)
+- `feature_list.json` — 3 Phase G + 2 retroactive Phase F features set to "pass" with evidence (42/49 complete)
+- `session-handoff.md` — Updated
+- `agent-progress.md` — Updated
+
 ## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
-4. Read `feature_list.json` to see current feature status (33/36 complete)
-5. Next: Implement **env-config** feature from Phase F, then proceed with the remaining LLM features (Phases F-H). Phase D eval features deferred to end.
-6. Testing notes:
+4. Run `npm rebuild better-sqlite3` before vitest tests (if they fail with NODE_MODULE_VERSION mismatch)
+5. Read `feature_list.json` to see current feature status (42/49 complete)
+6. Next: Implement Phase H features (markdown-rendering, token-usage-tracking, llm-settings, answer-eval, llm-health-ui), then Phase D eval features.
+7. Testing notes:
    - Use `npx vitest run test/<test-file>.ts` to run individual tests (vitest-compatible tests only)
    - Some old test files use custom runners and are incompatible with vitest (pre-existing)
-   - Tests require `npm rebuild better-sqlite3` if NODE_MODULE_VERSION error occurs
-   - Hybrid retriever tests seed 10 fixture chunks with real MiniLM embeddings (384-dim)
+   - `npm rebuild better-sqlite3` for Node.js when running vitest; `postinstall` rebuilds for Electron
+   - Streaming test (llm-provider.test.ts) covers askStream, cancel, error classification

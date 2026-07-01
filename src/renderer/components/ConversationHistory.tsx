@@ -5,6 +5,7 @@ interface ConversationHistoryProps {
   history: QAHistory[];
   onClearHistory: () => void;
   onSubmitFeedback: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') => void;
+  streamingEntry?: { question: string; partialAnswer: string; hasError: boolean; cancelled: boolean } | null;
 }
 
 /** Format ISO timestamp to a readable local time string. */
@@ -139,7 +140,7 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
   );
 }
 
-export function ConversationHistory({ history, onClearHistory, onSubmitFeedback }: ConversationHistoryProps) {
+export function ConversationHistory({ history, onClearHistory, onSubmitFeedback, streamingEntry }: ConversationHistoryProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set());
 
@@ -201,7 +202,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback 
       </div>
 
       {/* Empty state */}
-      {history.length === 0 && (
+      {history.length === 0 && !streamingEntry && (
         <div
           style={{
             flex: 1,
@@ -217,7 +218,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback 
       )}
 
       {/* Chat bubbles */}
-      {history.length > 0 && (
+      {(history.length > 0 || streamingEntry) && (
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {history.map((entry, idx) => {
             const cs = confidenceStyle(entry.response.confidence);
@@ -289,6 +290,14 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback 
                     {/* Expandable citations */}
                     <CitationsBlock citations={entry.response.citations} />
 
+                    {/* Token usage */}
+                    {entry.response.tokensUsed && (
+                      <div style={{ marginTop: '6px', fontSize: '11px', color: '#6666aa' }}>
+                        {entry.response.tokensUsed.total} tokens
+                        {entry.response.modelUsed ? ` · ${entry.response.modelUsed}` : ''}
+                      </div>
+                    )}
+
                     {/* Feedback buttons */}
                     <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
                       <button
@@ -337,6 +346,74 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback 
               </div>
             );
           })}
+
+          {/* Streaming entry */}
+          {streamingEntry && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* User question bubble — right-aligned, purple */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div
+                  style={{
+                    maxWidth: '75%',
+                    padding: '10px 14px',
+                    background: '#533483',
+                    borderRadius: '14px 14px 4px 14px',
+                    fontSize: '14px',
+                    lineHeight: 1.5,
+                    color: '#e8e0ff',
+                  }}
+                >
+                  <div>{streamingEntry.question}</div>
+                </div>
+              </div>
+
+              {/* Streaming answer bubble */}
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div
+                  style={{
+                    maxWidth: '80%',
+                    padding: '10px 14px',
+                    background: streamingEntry.hasError ? '#3a1a1a' : '#1a1a3e',
+                    borderRadius: '14px 14px 14px 4px',
+                    border: streamingEntry.hasError ? '1px solid #6a2020' : '1px solid #2a2a5e',
+                    fontSize: '14px',
+                    lineHeight: 1.6,
+                    color: streamingEntry.hasError ? '#ff9999' : '#d0d0f0',
+                  }}
+                >
+                  <div>
+                    {streamingEntry.partialAnswer}
+                    {!streamingEntry.hasError && !streamingEntry.cancelled && streamingEntry.partialAnswer && (
+                      <span style={{ animation: 'blink 1s step-end infinite', marginLeft: '2px' }}>▊</span>
+                    )}
+                    {streamingEntry.cancelled && !streamingEntry.partialAnswer && (
+                      <span style={{ color: '#ff8888' }}>[cancelled]</span>
+                    )}
+                  </div>
+
+                  {/* Status indicator */}
+                  {streamingEntry.partialAnswer && (
+                    <div
+                      style={{
+                        marginTop: '8px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '2px 7px',
+                        background: streamingEntry.hasError ? '#4a2020' : streamingEntry.cancelled ? '#4a4040' : '#1a2a4e',
+                        color: streamingEntry.hasError ? '#ff9999' : streamingEntry.cancelled ? '#aaaaaa' : '#88bbff',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ● {streamingEntry.hasError ? 'error' : streamingEntry.cancelled ? 'cancelled' : 'generating...'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -23,6 +23,11 @@ const IPC_CHANNELS = {
   GET_STATUS: 'app:status',
   SHOW_OPEN_DIALOG: 'dialog:show-open',
   RESET_DATA: 'app:reset',
+  LLM_HEALTH: 'llm:health',
+  ASK_QUESTION_STREAM: 'qa:ask-stream',
+  STREAM_CHUNK: 'qa:stream-chunk',
+  STREAM_DONE: 'qa:stream-done',
+  CANCEL_QUESTION: 'qa:cancel',
   GET_SETTINGS: 'settings:get',
   SET_SETTINGS: 'settings:set',
 } as const;
@@ -56,6 +61,18 @@ const api = {
   },
   qa: {
     ask: (question: string) => ipcRenderer.invoke(IPC_CHANNELS.ASK_QUESTION, question),
+    askStream: (question: string) => ipcRenderer.invoke(IPC_CHANNELS.ASK_QUESTION_STREAM, question),
+    cancel: (requestId: string) => ipcRenderer.invoke(IPC_CHANNELS.CANCEL_QUESTION, requestId),
+    onStreamChunk: (callback: (data: { requestId: string; chunk: { type: string; content?: string; error?: string } }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; chunk: { type: string; content?: string; error?: string } }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.STREAM_CHUNK, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.STREAM_CHUNK, handler);
+    },
+    onStreamDone: (callback: (data: { requestId: string; response?: unknown; error?: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; response?: unknown; error?: string }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.STREAM_DONE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.STREAM_DONE, handler);
+    },
     history: () => ipcRenderer.invoke(IPC_CHANNELS.GET_HISTORY),
     clearHistory: () => ipcRenderer.invoke(IPC_CHANNELS.CLEAR_HISTORY),
     retrieveDebug: (question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }) =>
@@ -72,6 +89,9 @@ const api = {
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
     set: (partial: Partial<import('../shared/types').RetrievalSettings>) => ipcRenderer.invoke(IPC_CHANNELS.SET_SETTINGS, partial),
+  },
+  llm: {
+    health: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_HEALTH),
   },
 };
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { DocumentList } from './components/DocumentList';
 import { QuestionPanel } from './components/QuestionPanel';
 import { DocumentDetail } from './components/DocumentDetail';
@@ -18,12 +18,43 @@ export function App() {
     lastActivity: '',
     indexedCount: 0,
     vectorEnabled: false,
+    llmEnabled: false,
   });
   const [history, setHistory] = useState<QAHistory[]>([]);
   const [showImport, setShowImport] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Streaming state
+  const [streamingEntry, setStreamingEntry] = useState<{ question: string; partialAnswer: string; hasError: boolean; cancelled: boolean } | null>(null);
+  const currentRequestId = useRef<string | null>(null);
+  const unsubChunk = useRef<(() => void) | null>(null);
+  const unsubDone = useRef<(() => void) | null>(null);
+
+  // Set up streaming event listeners once
+  useEffect(() => {
+    unsubChunk.current = window.knowledgeBase.qa.onStreamChunk((data) => {
+      if (data.requestId !== currentRequestId.current) return;
+      if (data.chunk.type === 'delta' && data.chunk.content) {
+        setStreamingEntry(prev => prev ? { ...prev, partialAnswer: prev.partialAnswer + data.chunk.content! } : prev);
+      } else if (data.chunk.type === 'error') {
+        setStreamingEntry(prev => prev ? { ...prev, hasError: true, partialAnswer: prev.partialAnswer + (data.chunk.error ? `\n\n${data.chunk.error}` : '') } : prev);
+      }
+    });
+
+    unsubDone.current = window.knowledgeBase.qa.onStreamDone((data) => {
+      if (data.requestId !== currentRequestId.current) return;
+      currentRequestId.current = null;
+      setStreamingEntry(null);
+      refreshHistory();
+    });
+
+    return () => {
+      unsubChunk.current?.();
+      unsubDone.current?.();
+    };
+  }, []);
 
   // Verify preload loaded
   useEffect(() => {
@@ -81,16 +112,26 @@ export function App() {
 
   const handleAskQuestion = useCallback(async (question: string) => {
     try {
-      await window.knowledgeBase.qa.ask(question);
-      // Reload full history so the new entry is included
-      await refreshHistory();
-      // Show history panel after asking a question
+      const requestId = await window.knowledgeBase.qa.askStream(question);
+      currentRequestId.current = requestId;
+      setStreamingEntry({ question, partialAnswer: '', hasError: false, cancelled: false });
       setShowHistory(true);
       setShowImport(false);
     } catch (err) {
-      console.error('Q&A failed:', err);
+      console.error('Streaming Q&A failed:', err);
     }
-  }, [refreshHistory]);
+  }, []);
+
+  const handleCancelQuestion = useCallback(async () => {
+    if (currentRequestId.current) {
+      try {
+        await window.knowledgeBase.qa.cancel(currentRequestId.current);
+      } catch (err) {
+        console.error('Cancel failed:', err);
+      }
+      setStreamingEntry(prev => prev ? { ...prev, cancelled: true } : prev);
+    }
+  }, []);
 
   const handleDeleteDocument = useCallback(async (id: string) => {
     try {
@@ -144,12 +185,15 @@ export function App() {
         lastActivity: '',
         indexedCount: 0,
         vectorEnabled: false,
+        llmEnabled: false,
       });
       setShowResetDialog(false);
     } catch (err) {
       console.error('Reset failed:', err);
     }
   }, []);
+
+  const isStreaming = currentRequestId.current !== null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -283,7 +327,12 @@ export function App() {
             {showImport ? (
               <ImportPanel onImport={handleImport} />
             ) : showHistory ? (
-              <ConversationHistory history={history} onClearHistory={handleClearHistory} onSubmitFeedback={handleSubmitFeedback} />
+              <ConversationHistory
+                history={history}
+                onClearHistory={handleClearHistory}
+                onSubmitFeedback={handleSubmitFeedback}
+                streamingEntry={streamingEntry}
+              />
             ) : selectedDoc ? (
               <DocumentDetail
                 document={selectedDoc}
@@ -297,7 +346,7 @@ export function App() {
             )}
           </div>
 
-          <QuestionPanel onAsk={handleAskQuestion} />
+          <QuestionPanel onAsk={handleAskQuestion} onCancel={handleCancelQuestion} isStreaming={isStreaming} />
         </div>
       </div>
 

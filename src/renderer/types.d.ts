@@ -18,6 +18,10 @@ declare global {
       };
       qa: {
         ask: (question: string) => Promise<import('../shared/types').QAResponse>;
+        askStream: (question: string) => Promise<string>;
+        cancel: (requestId: string) => Promise<{ cancelled: boolean }>;
+        onStreamChunk: (callback: (data: { requestId: string; chunk: { type: string; content?: string; error?: string } }) => void) => () => void;
+        onStreamDone: (callback: (data: { requestId: string; response?: import('../shared/types').QAResponse; error?: string }) => void) => () => void;
         history: () => Promise<import('../shared/types').QAHistory[]>;
         clearHistory: () => Promise<void>;
         retrieveDebug: (question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }) => Promise<{
@@ -39,6 +43,9 @@ declare global {
       settings: {
         get: () => Promise<import('../shared/types').RetrievalSettings>;
         set: (partial: Partial<import('../shared/types').RetrievalSettings>) => Promise<import('../shared/types').RetrievalSettings>;
+      };
+      llm: {
+        health: () => Promise<{ ok: boolean; model?: string; latencyMs?: number; error?: string }>;
       };
     };
   }

@@ -10,7 +10,10 @@ import { initDatabase } from '../services/db';
 import { runMigrations } from '../services/migrations/runner';
 import { LegacyImporter } from '../services/legacy-importer';
 import { logger } from '../services/logger';
+import { loadEnvConfig, isLLMEnabled } from '../services/env-config';
 import { embed } from '../services/embedding-service';
+import { NvidiaProvider } from '../services/providers/nvidia-provider';
+import type { LlmProvider } from '../services/providers/types';
 
 const log = logger.forService('Main');
 
@@ -71,6 +74,9 @@ function createWindow() {
 }
 
 function initializeServices() {
+  // Load environment config before any services initialize
+  loadEnvConfig();
+
   // Use project directory for data storage (easier for development)
   // In production, you might want to use app.getPath('userData') instead
   const dataDir = path.join(__dirname, '../../knowledge-base-data');
@@ -95,10 +101,23 @@ function initializeServices() {
   // Initialize settings service
   const settingsService = new SettingsService(persistence);
 
+  // Initialize LLM provider if configured
+  let llmProvider: LlmProvider | null = null;
+  if (isLLMEnabled()) {
+    try {
+      llmProvider = new NvidiaProvider();
+      log.info('LLM provider initialized');
+    } catch (error) {
+      log.error('Failed to initialize LLM provider', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   // Initialize services with database instance
   const documentService = new DocumentService(persistence, db);
   const indexingService = new IndexingService(persistence, db);
-  const qaService = new QaService(db, embed, () => settingsService.get());
+  const qaService = new QaService(db, embed, () => settingsService.get(), llmProvider);
 
   registerIpcHandlers(ipcMain, {
     documentService,
@@ -106,6 +125,7 @@ function initializeServices() {
     qaService,
     persistenceService: persistence,
     settingsService,
+    llmProvider,
   });
 }
 

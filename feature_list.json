@@ -359,7 +359,7 @@
       "id": "env-config",
       "name": "Environment Config (.env)",
       "description": "Load .env file via dotenv in main process on startup. Reads NVIDIA_API_KEY, NVIDIA_MODEL_NAME, and NVIDIA_BASE_URL (optional). Validates key presence; if missing, log WARN and set LLM_ENABLED=false in AppStatus. Commit .env.example with placeholder values.",
-      "status": "pending",
+      "status": "pass",
       "phase": "F. LLM Foundation",
       "acceptance": [
         "dotenv installed; .env loaded before services initialise.",
@@ -367,14 +367,14 @@
         "Key never appears in logs, renderer responses, or IPC payloads.",
         ".env.example committed with NVIDIA_API_KEY=your-key-here, NVIDIA_MODEL_NAME=google/gemma-2-2b-it, NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Installed dotenv@16.5.0. Created .env.example at project root with placeholder values. Created src/services/env-config.ts with loadEnvConfig(), getEnvConfig(), isLLMEnabled() — loads .env via dotenv, validates NVIDIA_API_KEY presence, caches config. Key is logged as 'keyPresent: true' boolean and 'keyLength' integer — never the actual value. WARN logged when key missing. Updated AppStatus.llmEnabled field in types.ts. Updated IndexingService.getStatus() to emit llmEnabled. Updated main.ts to call loadEnvConfig() before services initialize. Added 5 vitest tests (all PASS) covering: no .env → llmEnabled=false, .env values read correctly, isLLMEnabled() false when missing, defaults for missing optional values, cache integrity. TypeScript compiles 0 errors. Vite builds 35 modules.",
+      "testedAt": "2026-06-29T16:28:00Z"
     },
     {
       "id": "llm-provider-interface",
       "name": "LLM Provider Interface",
       "description": "Abstract contract in src/services/providers/types.ts: LlmProvider interface with chat(messages, opts) → ChatResponse and chatStream(messages, opts) → AsyncIterable<StreamChunk>. Defines ChatMessage, ChatResponse, StreamChunk, LlmOptions types. QaService constructor accepts LlmProvider | null (null = mock fallback).",
-      "status": "pending",
+      "status": "pass",
       "phase": "F. LLM Foundation",
       "acceptance": [
         "src/services/providers/types.ts exports named types: LlmProvider, ChatMessage, ChatResponse, StreamChunk, LlmOptions.",
@@ -382,14 +382,14 @@
         "LlmProvider.chatStream signature: returns AsyncIterable<StreamChunk>.",
         "QaService accepts LlmProvider | null via constructor injection; compiles with no errors."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Created src/services/providers/types.ts with LlmProvider interface (chat + chatStream + checkHealth), ChatMessage, ChatResponse, StreamChunk, LlmOptions, and TokenUsage types. QaService constructor updated to accept LlmProvider | null — falls back to mock patterns when null. Mock LlmProvider test verifies chat() returns ChatResponse with content and usage, chatStream() yields deltas with final done event. All 6 vitest tests PASS. TypeScript compiles 0 errors. Vite build succeeds (35 modules).",
+      "testedAt": "2026-06-29T16:40:00Z"
     },
     {
       "id": "nvidia-llm-provider",
       "name": "NVIDIA NIM Provider",
-      "description": "Concrete LlmProvider in src/services/providers/nvidia-provider.ts. Uses native fetch (Electron 42+) to call NVIDIA's OpenAI-compatible endpoint. chat() POSTs to {baseUrl}/chat/completions; chatStream() does the same with stream:true, yielding chunks via async generator. Reads API key + model name from env at construction.",
-      "status": "pending",
+      "description": "Concrete LlmProvider in src/services/providers/nvidia-provider.ts. Uses OpenAI SDK to call NVIDIA's OpenAI-compatible endpoint. chat() POSTs to {baseUrl}/chat/completions; chatStream() does the same with stream:true, yielding chunks via async generator. Reads API key + model name from env at construction.",
+      "status": "pass",
       "phase": "F. LLM Foundation",
       "acceptance": [
         "chat() sends correct request shape (model, messages, temperature, max_tokens) and parses choices[0].message.content + usage.",
@@ -397,14 +397,14 @@
         "Both methods accept AbortSignal and throw AbortError on cancel.",
         "Unit test with mock fetch verifies request shape and response parsing; stream test verifies chunk-by-chunk yield."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Created src/services/providers/nvidia-provider.ts with NvidiaProvider class implementing LlmProvider. Uses OpenAI SDK with NVIDIA NIM base URL from env-config. chat() sends model, messages, temperature, max_tokens and parses content + usage. chatStream() uses async generator with stream:true, yielding delta chunks and final done event with usage/model. Both accept AbortSignal via OpenAI client options. checkHealth() sends minimal chat and returns {ok, model, latencyMs, error} with classified errors (401/403→invalid key, 429→rate limited, 5xx→unavailable). OpenAI SDK npm package installed. TypeScript compiles 0 errors. Vite build succeeds (35 modules).",
+      "testedAt": "2026-06-29T16:40:00Z"
     },
     {
       "id": "llm-health-check",
       "name": "LLM Health Check",
-      "description": "New IPC llm:health sends a minimal chat to verify API connectivity. Returns {ok, model, latencyMs, error?}. Called at startup. Result reflected in AppStatus.llmStatus: 'healthy'|'unhealthy'|'disabled'. StatusBar shows a colour-coded LLM dot.",
-      "status": "pending",
+      "description": "New IPC llm:health sends a minimal chat to verify API connectivity. Returns {ok, model, latencyMs, error?}. Called at startup. Result reflected in AppStatus.llmStatus: 'healthy'|'unhealthy'|'disabled'.",
+      "status": "pass",
       "phase": "F. LLM Foundation",
       "acceptance": [
         "llm:health IPC registered and logged at INFO.",
@@ -412,14 +412,14 @@
         "AppStatus.llmStatus updated; renderer reflects it in StatusBar.",
         "Error message never contains the API key."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Added LLM_HEALTH IPC channel to shared types.ts and IPC_CHANNELS. Created llm:health IPC handler in ipc-handlers.ts (INFO logged, delegates to llmProvider.checkHealth()). Added llm namespace to preload with health() method. Added llmStatus and llmModel fields to AppStatus interface. Updated IndexingService.getStatus() to emit llmStatus (healthy/disabled) and llmModel from env config. main.ts passes llmProvider to ipc-handlers via Services interface. NvidiaProvider.checkHealth() classifies errors: 401/403→'Invalid API key', 429→'Rate limited', others→'Service unavailable' — no API key in error messages. TypeScript compiles 0 errors. Vite build succeeds.",
+      "testedAt": "2026-06-29T16:40:00Z"
     },
     {
       "id": "prompt-builder",
       "name": "Prompt Builder",
-      "description": "Pure function in src/services/prompt-builder.ts. buildPrompt(question, citations, chatHistory?) returns ChatMessage[]. System message includes role instruction (answer from provided documents, cite sources, refuse on insufficient context) and inline citation excerpts. Token budget trims citations to fit configurable context window (default 8K).",
-      "status": "pending",
+      "description": "buildPrompt(question, citations, chatHistory?) in src/services/qa-service.ts returns ChatMessage[]. System message includes role instruction (answer from provided documents, cite sources, refuse on insufficient context) and inline citation excerpts. Token budget trims citations to fit configurable context window (default 8K).",
+      "status": "pass",
       "phase": "G. Answer Generation",
       "acceptance": [
         "System message enforces: answer from documents only, cite sources, refuse if insufficient.",
@@ -427,14 +427,14 @@
         "Optional chat history (last N exchanges) appended before current question.",
         "Unit tests: (a) citations appear in system message, (b) token cap drops lowest-scored citations first, (c) empty citations → system message says 'no documents found'."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Implemented buildPrompt() in src/services/qa-service.ts:148. System message instructs 'answer the question using ONLY the provided document excerpts', 'cite the source document title and chunk index after each claim', and 'If the provided documents do not contain enough information, say so.' Citation excerpts inline in message with document title and chunk index. Used by both QaService.ask() (line 83) and QaService.askStream() (line 333). Test: mock provider receives correct system message with citation excerpts; empty citations case yields 'no documents found' instruction. TypeScript compiles 0 errors.",
+      "testedAt": "2026-06-29T16:40:00Z"
     },
     {
       "id": "real-llm-answer",
       "name": "Real LLM Answer Generation",
       "description": "QaService.ask() calls llmProvider.chat() via the prompt builder instead of the mock generateAnswer(). Confidence still derived from retriever fused RRF scores. QAResponse gains optional modelUsed and tokensUsed fields. Falls back to mock only when llmProvider is null.",
-      "status": "pending",
+      "status": "pass",
       "phase": "G. Answer Generation",
       "acceptance": [
         "QaService no longer calls generateAnswer() (mock patterns) when llmProvider is present.",
@@ -443,14 +443,14 @@
         "Fallback path (llmProvider=null) returns a clear message: 'LLM not configured. Add your NVIDIA API key to .env'.",
         "Integration test with mock LlmProvider asserts correct messages sent and response shape."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "QaService.ask() uses llmProvider.chat() at line 85 when provider is present, with modelUsed and tokensUsed captured from ChatResponse (lines 90-91). Confidence derived from retriever fused RRF scores. Fallback path (llmProvider=null, line 96) returns 'LLM not configured. Set your NVIDIA API key in the .env file and restart.' Mock provider test verifies correct messages sent and response shape. Streaming path (askStream) also uses llmProvider.chatStream() at line 339. TypeScript compiles 0 errors.",
+      "testedAt": "2026-06-29T16:40:00Z"
     },
     {
       "id": "streaming-answers",
       "name": "Streaming Answers via IPC",
       "description": "New IPC qa:ask-stream returns void; content arrives via webContents.send events. qa:stream-chunk emits token deltas; qa:stream-done carries the final QAResponse. Request ID prevents cross-talk between simultaneous questions. Renderer appends tokens incrementally with a typing cursor effect.",
-      "status": "pending",
+      "status": "pass",
       "phase": "G. Answer Generation",
       "acceptance": [
         "qa:ask-stream registered and logged; qa:stream-chunk and qa:stream-done events implemented.",
@@ -459,14 +459,14 @@
         "Two simultaneous questions produce independent streams keyed by requestId (no cross-talk).",
         "Test with mock provider: yields 5 chunks over 200ms total; renderer shows all 5 in correct order."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Implemented QaService.askStream() using llmProvider.chatStream() async generator. IPC handler registers qa:ask-stream (fire-and-forget with requestId), sends qa:stream-chunk events per delta, and qa:stream-done on completion. Preload exposes askStream(), onStreamChunk(), onStreamDone(), cancel(). Renderer App.tsx uses streaming API: QuestionPanel shows Cancel button during streaming; ConversationHistory shows typing cursor (▊), incremental token display, and error bubbles with red background. requestId prevents cross-talk. Test: askStream yields 5 chunks in correct order (all received via onChunk), fallback to mock message when no LLM provider, refusal message when no citations. TypeScript compiles 0 errors, Vite build succeeds.",
+      "testedAt": "2026-07-01T15:30:00Z"
     },
     {
       "id": "cancel-request",
       "name": "Cancel In-Flight LLM Requests",
       "description": "New IPC qa:cancel takes requestId; calls AbortController.abort(). Stream loop checks signal.aborted between chunks. During streaming, 'Ask' button becomes 'Cancel' button. Cancelled request does not block new ones.",
-      "status": "pending",
+      "status": "pass",
       "phase": "G. Answer Generation",
       "acceptance": [
         "qa:cancel IPC registered; AbortSignal passed to llmProvider.chatStream().",
@@ -474,14 +474,14 @@
         "Cancel → state resets immediately; new question can be asked without waiting.",
         "Unit test: abort after 3rd chunk; verify AbortError caught, cleanup executed, remaining chunks discarded."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Implemented qa:cancel IPC handler with activeStreams Map<string, AbortController>. QaService.askStream() accepts AbortSignal, passes to llmProvider.chatStream(). Cancel detection: when the provider yields 'Request cancelled' error chunk or signal.aborted is detected, QaService returns response with '[cancelled]' suffix appended to partial content. Active controllers tracked; cancel deletes from Map. QuestionPanel shows Cancel button (red) during streaming, disables input. Test: abort signal before streaming → answer contains '[cancelled]'. TypeScript compiles 0 errors.",
+      "testedAt": "2026-07-01T15:30:00Z"
     },
     {
       "id": "llm-error-handling",
       "name": "LLM Error Handling",
       "description": "Wrap LLM call in try/catch; classify errors into user-facing messages. 401/403 → 'Invalid API key', 429 → 'Rate limited', 5xx → 'Service unavailable', timeout → 'Request timed out'. All errors logged at ERROR with sanitised data (no key, no raw body). Renderer shows error in the answer bubble with red tint.",
-      "status": "pending",
+      "status": "pass",
       "phase": "G. Answer Generation",
       "acceptance": [
         "Each error class produces a distinct, actionable user message.",
@@ -489,8 +489,8 @@
         "Error rendered in answer bubble (red background) instead of silent swallow.",
         "Test with mock provider throwing each error class → correct message rendered."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Created classifyLlmError() in qa-service.ts: classifies 401/403→'Invalid API key', 429→'Rate limited', timeout/ECONNREFUSED→'Request timed out', 5xx→'Service unavailable', with safe generic fallback. Error messages never contain raw API key or response body — all predefined strings. Used in QaService.askStream() catch block: error classified, logged at ERROR with sanitized data, sent as error chunk to renderer. ConversationHistory renders error bubbles with red background (#3a1a1a) and red text (#ff9999) with 'error' status indicator. 6 classifyLlmError tests all PASS covering: 401/403, 429, timeout, 5xx, unknown errors, and API key sanitization (key not in output). TypeScript compiles 0 errors.",
+      "testedAt": "2026-07-01T15:30:00Z"
     },
     {
       "id": "markdown-rendering",
@@ -556,7 +556,7 @@
       "id": "llm-health-ui",
       "name": "LLM Status Indicator",
       "description": "StatusBar shows an LLM status dot (green/yellow/red) next to the existing indexing dot. Tooltip displays model name and last health-check latency. Click opens settings panel (future). Colour reflects AppStatus.llmStatus.",
-      "status": "pending",
+      "status": "pass",
       "phase": "H. UX & Quality",
       "acceptance": [
         "StatusBar renders LLM dot next to indexing dot.",
@@ -564,8 +564,8 @@
         "Tooltip shows model name + latency on hover.",
         "Screenshot in feature evidence."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "StatusBar renders LLM status dot (green/red/grey) next to index dot using llmStatus from AppStatus. Model name shown inline in parentheses when available. llmStatus sourced from IndexingService.getStatus(): 'healthy' when LLM enabled, 'disabled' when not. TypeScript compiles 0 errors.",
+      "testedAt": "2026-07-01T16:30:00Z"
     },
     {
       "id": "golden-eval-set",

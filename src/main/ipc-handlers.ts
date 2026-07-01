@@ -7,6 +7,8 @@ import { SettingsService } from '../services/settings-service';
 import { IPC_CHANNELS } from '../shared/types';
 import { logger } from '../services/logger';
 import { clearAllData } from '../services/db';
+import type { LlmProvider } from '../services/providers/types';
+import type { StreamChunk } from '../services/providers/types';
 
 const log = logger.forService('IPC');
 
@@ -16,7 +18,10 @@ export interface Services {
   qaService: QaService;
   persistenceService: PersistenceService;
   settingsService: SettingsService;
+  llmProvider?: LlmProvider | null;
 }
+
+const activeStreams = new Map<string, AbortController>();
 
 export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
   const { documentService, indexingService, qaService, persistenceService, settingsService } = services;
@@ -80,6 +85,57 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
     return qaService.clearHistory();
   });
 
+  // Streaming Q&A
+  ipcMain.handle(IPC_CHANNELS.ASK_QUESTION_STREAM, async (event, question: string) => {
+    log.info('IPC received', { channel: IPC_CHANNELS.ASK_QUESTION_STREAM, question: question.substring(0, 100) });
+    const requestId = crypto.randomUUID();
+    const win = BrowserWindow.fromWebContents(event.sender);
+
+    if (!win) {
+      return { requestId, error: 'Window not available' };
+    }
+
+    const controller = new AbortController();
+    activeStreams.set(requestId, controller);
+
+    const onChunk = (chunk: StreamChunk) => {
+      if (win.isDestroyed()) return;
+      win.webContents.send(IPC_CHANNELS.STREAM_CHUNK, { requestId, chunk });
+    };
+
+    qaService.askStream(question, onChunk, controller.signal)
+      .then((response) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.STREAM_DONE, { requestId, response });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.STREAM_DONE, {
+            requestId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      })
+      .finally(() => {
+        activeStreams.delete(requestId);
+      });
+
+    return requestId;
+  });
+
+  // Cancel streaming
+  ipcMain.handle(IPC_CHANNELS.CANCEL_QUESTION, async (_event, requestId: string) => {
+    log.info('IPC received', { channel: IPC_CHANNELS.CANCEL_QUESTION, requestId });
+    const controller = activeStreams.get(requestId);
+    if (controller) {
+      controller.abort();
+      activeStreams.delete(requestId);
+      return { cancelled: true };
+    }
+    return { cancelled: false };
+  });
+
   // Retrieval debug
   ipcMain.handle(IPC_CHANNELS.RETRIEVE_DEBUG, async (_event, question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }) => {
     log.debug('IPC received', { channel: IPC_CHANNELS.RETRIEVE_DEBUG, question: question.substring(0, 100), mode: opts?.mode });
@@ -140,6 +196,25 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
       win?.webContents.send(IPC_CHANNELS.INDEXING_PROGRESS, { processed, total });
     };
     return indexingService.rebuildEmbeddings(sendProgress);
+  });
+
+  // LLM health check
+  ipcMain.handle(IPC_CHANNELS.LLM_HEALTH, async () => {
+    log.info('IPC received', { channel: IPC_CHANNELS.LLM_HEALTH });
+
+    if (!services.llmProvider) {
+      return { ok: false, error: 'LLM not configured. Add your NVIDIA API key to .env', latencyMs: 0 };
+    }
+
+    try {
+      const result = await services.llmProvider.checkHealth();
+      return result;
+    } catch (error: unknown) {
+      log.error('LLM health check error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { ok: false, error: 'LLM service unavailable. Check your connection.' };
+    }
   });
 
   // Settings

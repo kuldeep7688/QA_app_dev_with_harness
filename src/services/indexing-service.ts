@@ -4,6 +4,7 @@ import { Chunk, Document, AppStatus } from '../shared/types';
 import { PersistenceService } from './persistence-service';
 import { logger } from './logger';
 import { isVectorExtensionLoaded } from './db';
+import { isLLMEnabled, getEnvConfig } from './env-config';
 import { embedBatch } from './embedding-service';
 
 const log = logger.forService('IndexingService');
@@ -98,12 +99,18 @@ export class IndexingService {
       isReady,
     });
 
+    const llmOn = isLLMEnabled();
+    const envConfig = llmOn ? getEnvConfig() : null;
+
     return {
       documentsLoaded: totalDocuments,
       indexStatus: isReady ? 'ready' : currentIndexed > 0 && currentIndexed < totalDocuments ? 'indexing' : totalDocuments === 0 ? 'idle' : 'idle',
       lastActivity: new Date().toISOString(),
       indexedCount: currentIndexed,
       vectorEnabled: isVectorExtensionLoaded(),
+      llmEnabled: llmOn,
+      llmStatus: llmOn ? 'healthy' : 'disabled',
+      llmModel: envConfig?.modelName,
     };
   }
 

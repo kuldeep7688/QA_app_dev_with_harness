@@ -2190,3 +2190,143 @@ The `qa:retrieve-debug` IPC channel that returns the three ranked lists (BM25, v
 - **Features Remaining:** 4 (citation-source-badge, golden-eval-set, eval-runner, eval-in-ci)
 - **Build Health:** ✅ Green
 - **Next Feature:** citation-source-badge or golden-eval-set
+
+---
+
+## Session: 2026-06-29 — Phase F: LLM Foundation (3 features)
+
+**Duration:** ~20 minutes
+
+### Features Completed
+
+#### 1. LLM Provider Interface (llm-provider-interface)
+- Created `src/services/providers/types.ts` with:
+  - `LlmProvider` interface (chat + chatStream + checkHealth)
+  - `ChatMessage` { role: 'system'|'user'|'assistant', content }
+  - `ChatResponse` { content, usage?, model? }
+  - `StreamChunk` { type: 'delta'|'done'|'error', content?, usage?, model?, error? }
+  - `LlmOptions` { model?, temperature?, maxTokens?, signal?, systemPrompt? }
+  - `TokenUsage` { prompt, completion, total }
+- Updated `QaService` constructor to accept `LlmProvider | null` (4th parameter)
+- QaService uses LLM provider when available, falls back to mock patterns when null
+- Prompt builder in QaService assembles system + citation excerpts + user question
+
+#### 2. NVIDIA NIM Provider (nvidia-llm-provider)
+- Created `src/services/providers/nvidia-provider.ts` using OpenAI SDK
+- `chat()` sends messages to NVIDIA NIM, parses content + usage
+- `chatStream()` async generator yields delta chunks, final done with usage
+- `checkHealth()` sends minimal chat, classifies errors: 401/403→invalid key, 429→rate limited
+- No API key in error messages or logs
+
+#### 3. LLM Health Check (llm-health-check)
+- Added `llm:health` IPC channel, handler (INFO logged), preload bridge
+- `AppStatus.llmStatus` and `llmModel` fields in shared types
+- `IndexingService.getStatus()` emits llmStatus/llmModel
+- `main.ts` wires NvidiaProvider when LLM enabled
+
+### Changes
+
+```
+NEW:  src/services/providers/types.ts
+NEW:  src/services/providers/nvidia-provider.ts
+NEW:  test/llm-provider.test.ts
+UPDATED: src/shared/types.ts (TokenUsage, llmStatus, LLM IPC channels)
+UPDATED: src/services/qa-service.ts (LlmProvider injection, buildPrompt)
+UPDATED: src/services/indexing-service.ts (getStatus llm fields)
+UPDATED: src/main/main.ts (NvidiaProvider wiring)
+UPDATED: src/main/ipc-handlers.ts (llm:health handler)
+UPDATED: src/preload/preload.ts (llm namespace)
+UPDATED: src/renderer/types.d.ts (llm type declarations)
+UPDATED: docs/ARCHITECTURE.md (OpenAI SDK, type additions)
+UPDATED: package.json (openai dependency)
+UPDATED: feature_list.json (3 features → pass)
+```
+
+### Verification
+
+```
+✅ npm run check  — 0 TypeScript errors
+✅ npm run build  — 35 modules, 165 kB
+✅ npx vitest run test/llm-provider.test.ts — 6/6 PASS
+✅ bash init.sh  — All checks passed
+```
+
+### Key Learnings
+
+1. **OpenAI SDK in Electron**: Works with Electron 42+ since it uses native `fetch` under the hood, same as the architecture's original native fetch approach
+2. **AbortSignal propagation**: The OpenAI SDK accepts `{signal}` in request options, mapping cleanly to `AbortController`
+3. **Async generators for streaming**: `chatStream()` returns `AsyncIterable<StreamChunk>` which integrates cleanly with Electron's IPC event pattern
+4. **QaService injection pattern**: Keeping `LlmProvider | null` in the constructor means the app works without any API key configured — zero-config fallback to mock patterns
+
+### Feature Status
+
+- **Features Complete:** 37/49
+- **Features Remaining:** 12 (Phases G-H: streaming, cancel, error handling, markdown, tokens, LLM settings, answer-eval, llm-health-ui + Phase D: golden-eval-set, eval-runner, eval-in-ci)
+- **Build Health:** ✅ Green
+- **Next Feature:** markdown-rendering (Phase H) or token-usage-tracking (Phase H)
+
+---
+
+## Session: 2026-07-01 — Phase G: Streaming Answers + Cancel + Error Handling (3 features)
+
+**Duration:** ~30 minutes
+
+### Features Completed
+
+#### streaming-answers
+- `QaService.askStream()` using `llmProvider.chatStream()` async generator
+- `qa:ask-stream` IPC handler (fire-and-forget), sends `qa:stream-chunk`/`qa:stream-done` via `webContents.send`
+- `activeStreams` Map tracks `AbortController` per `requestId`
+- Preload: `askStream()`, `onStreamChunk()`, `onStreamDone()`, `cancel()`
+- Renderer: QuestionPanel Cancel button, ConversationHistory typing cursor/blink, streamingEntry state
+- Falls back to "LLM not configured" or "No relevant documents" messages when applicable
+
+#### cancel-request
+- `qa:cancel` IPC aborts via `AbortController`; QaService passes signal to provider
+- Cancel detection: provider "Request cancelled" error chunk or `signal.aborted` → `[cancelled]` suffix
+- QuestionPanel: input disabled, Cancel button (red) during streaming
+- Pre-aborted signal test verifies cancelled response
+
+#### llm-error-handling
+- `classifyLlmError()`: 401/403→"Invalid API key", 429→"Rate limited", timeout→"Request timed out", 5xx→"Service unavailable"
+- Error messages are predefined strings — no raw API key/response body
+- ConversationHistory renders errors with red background, red text, "error" indicator
+- 6 classifyLlmError tests: all error classes + API key sanitization
+
+### Changes
+
+```
+UPDATED: src/services/qa-service.ts — askStream(), classifyLlmError(), StreamChunk import
+UPDATED: src/main/ipc-handlers.ts — ask-stream/cancel handlers, activeStreams Map
+UPDATED: src/preload/preload.ts — streaming API, STREAM_CHUNK/STREAM_DONE channels
+UPDATED: src/renderer/types.d.ts — streaming type declarations
+REWRITTEN: src/renderer/App.tsx — streaming state, event listeners, isStreaming
+UPDATED: src/renderer/components/QuestionPanel.tsx — Cancel button, isStreaming prop
+UPDATED: src/renderer/components/ConversationHistory.tsx — streamingEntry, error display, token info
+UPDATED: test/llm-provider.test.ts — 16 tests (10 new)
+UPDATED: feature_list.json — 3 Phase G + 2 retroactive Phase F features → pass
+UPDATED: session-handoff.md
+```
+
+### Verification
+
+```
+✅ npm run check — 0 TypeScript errors
+✅ npm run build — 35 modules, 168 kB
+✅ npx vitest run test/llm-provider.test.ts — 16/16 PASS
+✅ bash init.sh — All checks passed
+```
+
+### Key Learnings
+
+1. **IPC streaming pattern**: Fire-and-forget from the handler (return `requestId` immediately), send events via `webContents.send`. Renderer registers event listeners BEFORE calling `askStream()`.
+2. **AbortSignal propagation**: The OpenAI SDK's `create()` accepts AbortSignal; when aborted mid-stream, the `for await` loop throws AbortError caught by NvidiaProvider → yields `{ type: 'error', error: 'Request cancelled' }` → QaService catches and returns `[cancelled]` response.
+3. **Error classification safety**: Must never include raw error message in user output (OpenAI SDK errors may contain API key). Predefined strings only.
+4. **Renderer state complexity**: Streaming state (question, partialAnswer, requestId) crosses multiple components. `useRef` for requestId, `useState` for streamingEntry, event listener cleanup via `useEffect` return.
+
+### Feature Status
+
+- **Features Complete:** 42/49
+- **Features Remaining:** 7 (Phase H: markdown-rendering, token-usage-tracking, llm-settings, answer-eval, llm-health-ui + Phase D: golden-eval-set, eval-runner, eval-in-ci)
+- **Build Health:** ✅ Green
+- **Next Feature:** markdown-rendering (Phase H) — `react-markdown` + `remark-gfm` in answer bubbles

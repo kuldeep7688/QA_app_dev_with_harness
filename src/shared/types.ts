@@ -37,6 +37,14 @@ export interface QAResponse {
   citations: Citation[];
   confidence: number;
   timestamp: string;
+  modelUsed?: string;
+  tokensUsed?: TokenUsage;
+}
+
+export interface TokenUsage {
+  prompt: number;
+  completion: number;
+  total: number;
 }
 
 export interface QAHistory {
@@ -49,7 +57,10 @@ export interface AppStatus {
   indexStatus: 'idle' | 'indexing' | 'ready' | 'error';
   lastActivity: string;
   indexedCount: number;
-  vectorEnabled: boolean; // Whether sqlite-vec extension loaded successfully
+  vectorEnabled: boolean;
+  llmEnabled: boolean;
+  llmStatus?: 'healthy' | 'unhealthy' | 'disabled';
+  llmModel?: string;
 }
 
 /** IPC channel names -- single source of truth. */
@@ -83,6 +94,13 @@ export const IPC_CHANNELS = {
 
   // Dialog
   SHOW_OPEN_DIALOG: 'dialog:show-open',
+
+  // LLM
+  LLM_HEALTH: 'llm:health',
+  ASK_QUESTION_STREAM: 'qa:ask-stream',
+  STREAM_CHUNK: 'qa:stream-chunk',
+  STREAM_DONE: 'qa:stream-done',
+  CANCEL_QUESTION: 'qa:cancel',
 
   // Settings
   GET_SETTINGS: 'settings:get',

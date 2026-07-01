@@ -362,9 +362,9 @@ Once the hybrid retriever is in place, the final piece turns the app from a mock
 | LLM provider | NVIDIA NIM (`https://integrate.api.nvidia.com/v1`) — OpenAI-compatible chat completions |
 | Auth | `NVIDIA_API_KEY` in `.env` (loaded by `dotenv`); key never reaches renderer |
 | Default model | `google/gemma-2-2b-it` (configurable via env or settings) |
-| Streaming | SSE (`stream: true`) → `webContents.send()` token deltas |
-| Cancel | `AbortController` |
-| HTTP client | Native `fetch` (Electron 42+) |
+| Streaming | OpenAI SDK `stream: true` → async generator → `webContents.send()` token deltas |
+| Cancel | `AbortController` via OpenAI SDK `signal` option |
+| HTTP client | OpenAI SDK (native `fetch` via Node.js/Electron) |
 | Markdown render | `react-markdown` + `remark-gfm` in renderer |
 
 ### Provider Architecture
@@ -426,45 +426,47 @@ Renderer                    Main                          NVIDIA
    │   {requestId})          │
 ```
 
-### New Services Map
+### Services Map (Phases F–H)
 
 ```
 Services (post-LLM)
   ├─ providers/
-  │   ├─ types.ts            -- LlmProvider, ChatMessage, ChatResponse, etc.
-  │   └─ nvidia-provider.ts  -- NVIDIA NIM implementation
-  ├─ prompt-builder.ts       -- buildPrompt(question, citations, history?) → ChatMessage[]
-  ├─ qa-service.ts           -- injected LlmProvider; calls retriever + prompt-builder + provider
-  ├─ retriever.ts            -- hybridSearch (from prior phase)
-  ├─ db.ts, migrations/      -- SQLite (from prior phase)
-  └─ ...
+  │   ├─ types.ts            -- LlmProvider, ChatMessage, ChatResponse, etc. ✅
+  │   └─ nvidia-provider.ts  -- NVIDIA NIM via OpenAI SDK ✅
+  ├─ prompt-builder.ts       -- buildPrompt(question, citations, history?) → ChatMessage[] (in qa-service.ts)
+  ├─ qa-service.ts           -- injected LlmProvider; calls retriever + provider ✅
+  ├─ retriever.ts            -- hybridSearch (from prior phase) ✅
+  ├─ db.ts, migrations/      -- SQLite (from prior phase) ✅
+  └─ env-config.ts           -- loads .env, provides API key + model name ✅
 ```
 
-### IPC Channels (7 additions — 32 total including hybrid search additions)
+### IPC Channels (6 additions — 32 total including hybrid search additions)
 
-| Channel | Direction | Purpose |
-|---|---|---|
-| `llm:health` | R → M | Connectivity check (minimal chat) |
-| `qa:ask-stream` | R → M | Streaming ask; response via events |
-| `qa:stream-chunk` (event) | M → R | Token delta per chunk |
-| `qa:stream-done` (event) | M → R | Final `QAResponse` with citations, usage |
-| `qa:cancel` | R → M | Abort in-flight request by `requestId` |
-| `settings:get` | R → M | Read settings JSON |
-| `settings:set` | R → M | Write settings JSON |
+| Channel | Direction | Purpose | Status |
+|---|---|---|---|
+| `llm:health` | R → M | Connectivity check (minimal chat) | ✅ |
+| `qa:ask-stream` | R → M | Streaming ask; response via events | 🔜 |
+| `qa:stream-chunk` (event) | M → R | Token delta per chunk | 🔜 |
+| `qa:stream-done` (event) | M → R | Final `QAResponse` with citations, usage | 🔜 |
+| `qa:cancel` | R → M | Abort in-flight request by `requestId` | 🔜 |
+| `settings:get` | R → M | Read settings JSON | ✅ |
+| `settings:set` | R → M | Write settings JSON | ✅ |
 
-### Type Additions
+### Type Additions (✅ all implemented)
 
 ```typescript
 // shared/types.ts additions
 interface TokenUsage { prompt: number; completion: number; total: number; }
+// QAResponse gains: modelUsed?: string, tokensUsed?: TokenUsage
+// AppStatus gains: llmStatus, llmModel
 
-// QAResponse gains:
-//   modelUsed?: string
-//   tokensUsed?: TokenUsage
-
-// AppStatus gains:
-//   llmStatus: 'healthy' | 'unhealthy' | 'disabled'
-//   llmModel?: string
+// providers/types.ts exports:
+//   LlmProvider (chat + chatStream + checkHealth)
+//   ChatMessage { role, content }
+//   ChatResponse { content, usage?, model? }
+//   StreamChunk { type: 'delta'|'done'|'error', content?, usage?, model?, error? }
+//   LlmOptions { model?, temperature?, maxTokens?, signal?, systemPrompt? }
+//   TokenUsage { prompt, completion, total }
 ```
 
 ### Configuration
