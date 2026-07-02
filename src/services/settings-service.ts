@@ -1,4 +1,4 @@
-import type { RetrievalSettings } from '../shared/types';
+import type { LlmSettings, RetrievalSettings } from '../shared/types';
 import { PersistenceService } from './persistence-service';
 import { logger } from './logger';
 
@@ -12,6 +12,14 @@ const DEFAULTS: RetrievalSettings = {
   topN: 20,
   rrfK: 60,
   embeddingsEnabled: true,
+};
+
+const LLM_DEFAULTS: LlmSettings = {
+  modelName: '',
+  temperature: 0.3,
+  maxTokens: 1024,
+  streamEnabled: true,
+  systemPrompt: '',
 };
 
 export class SettingsService {
@@ -96,6 +104,71 @@ export class SettingsService {
     });
 
     return { ...merged };
+  }
+
+  getLlmSettings(): LlmSettings {
+    const saved = this.persistence.readJson<Partial<LlmSettings & RetrievalSettings>>('settings.json');
+    if (saved) {
+      const validated = this.applyLlmDefaults(saved);
+      log.debug('LLM settings loaded from disk', { modelName: validated.modelName || '(env default)' });
+      return validated;
+    }
+    log.info('No settings file found, using LLM defaults');
+    this.persistence.writeJson('settings.json', { ...DEFAULTS, ...LLM_DEFAULTS });
+    return { ...LLM_DEFAULTS };
+  }
+
+  setLlmSettings(partial: Partial<LlmSettings>): LlmSettings {
+    const current = this.getLlmSettings();
+    const merged: LlmSettings = {
+      ...current,
+      ...partial,
+    };
+
+    if (partial.temperature !== undefined) {
+      if (typeof partial.temperature !== 'number' || partial.temperature < 0) {
+        log.warn('Invalid temperature rejected', { invalidValue: partial.temperature });
+        merged.temperature = current.temperature;
+      } else if (partial.temperature > 1.0) {
+        log.warn('Temperature clamped to 1.0', { originalValue: partial.temperature });
+        merged.temperature = 1.0;
+      }
+    }
+
+    if (partial.maxTokens !== undefined) {
+      if (!Number.isInteger(partial.maxTokens) || partial.maxTokens < 1) {
+        log.warn('Invalid maxTokens rejected', { invalidValue: partial.maxTokens });
+        merged.maxTokens = current.maxTokens;
+      }
+    }
+
+    if (partial.streamEnabled !== undefined && typeof partial.streamEnabled !== 'boolean') {
+      log.warn('Invalid streamEnabled rejected', { invalidValue: partial.streamEnabled });
+      merged.streamEnabled = current.streamEnabled;
+    }
+
+    const persisted = this.persistence.readJson<Record<string, unknown>>('settings.json') ?? {};
+    this.persistence.writeJson('settings.json', { ...persisted, ...merged });
+
+    log.info('LLM settings updated', {
+      modelName: merged.modelName || '(env default)',
+      temperature: merged.temperature,
+      maxTokens: merged.maxTokens,
+      streamEnabled: merged.streamEnabled,
+      systemPromptLength: merged.systemPrompt.length,
+    });
+
+    return { ...merged };
+  }
+
+  private applyLlmDefaults(saved: Partial<LlmSettings>): LlmSettings {
+    return {
+      modelName: typeof saved.modelName === 'string' ? saved.modelName : LLM_DEFAULTS.modelName,
+      temperature: typeof saved.temperature === 'number' && saved.temperature >= 0 ? Math.min(saved.temperature, 1.0) : LLM_DEFAULTS.temperature,
+      maxTokens: typeof saved.maxTokens === 'number' && Number.isInteger(saved.maxTokens) && saved.maxTokens >= 1 ? saved.maxTokens : LLM_DEFAULTS.maxTokens,
+      streamEnabled: typeof saved.streamEnabled === 'boolean' ? saved.streamEnabled : LLM_DEFAULTS.streamEnabled,
+      systemPrompt: typeof saved.systemPrompt === 'string' ? saved.systemPrompt : LLM_DEFAULTS.systemPrompt,
+    };
   }
 
   private applyDefaults(saved: Partial<RetrievalSettings>): RetrievalSettings {

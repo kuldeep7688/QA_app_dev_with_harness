@@ -1,113 +1,199 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { PersistenceService } from '../src/services/persistence-service';
 import { SettingsService } from '../src/services/settings-service';
-import type { RetrievalSettings } from '../src/shared/types';
 
-const tempRoot = path.join(os.tmpdir(), 'kb-settings-test-' + Date.now());
-const dataDir = path.join(tempRoot, 'data');
-fs.mkdirSync(tempRoot, { recursive: true });
+describe('Settings Service', () => {
+  const tempRoot = path.join(os.tmpdir(), 'kb-settings-test-' + Date.now());
+  const dataDir = path.join(tempRoot, 'data');
 
-let failed = 0;
-function check(label: string, cond: boolean, detail?: string) {
-  if (cond) {
-    console.log(`PASS: ${label}`);
-  } else {
-    console.error(`FAIL: ${label}${detail ? ' -- ' + detail : ''}`);
-    failed++;
-  }
-}
+  beforeAll(() => {
+    fs.mkdirSync(tempRoot, { recursive: true });
+  });
 
-async function run() {
-  const persistence = new PersistenceService(dataDir);
+  afterAll(() => {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
 
-  // Test 1: Default settings on first launch
-  const settings = new SettingsService(persistence);
-  const defaults = settings.get();
-  check('Default mode is hybrid', defaults.retrievalMode === 'hybrid');
-  check('Default topK is 5', defaults.topK === 5);
-  check('Default topN is 20', defaults.topN === 20);
-  check('Default rrfK is 60', defaults.rrfK === 60);
-  check('Default embeddingsEnabled is true', defaults.embeddingsEnabled === true);
-  check('Settings file created after get', persistence.exists('settings.json'));
+  it('should return default settings on first launch', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    const defaults = settings.get();
 
-  // Test 2: Settings persist to disk
-  const settings2 = new SettingsService(persistence);
-  const fromDisk = settings2.get();
-  check('Cached settings persist across instances', fromDisk.retrievalMode === 'hybrid');
-  check('topK persists', fromDisk.topK === 5);
+    expect(defaults.retrievalMode).toBe('hybrid');
+    expect(defaults.topK).toBe(5);
+    expect(defaults.topN).toBe(20);
+    expect(defaults.rrfK).toBe(60);
+    expect(defaults.embeddingsEnabled).toBe(true);
+    expect(persistence.exists('settings.json')).toBe(true);
+  });
 
-  // Test 3: Update settings
-  const updated = settings.set({ retrievalMode: 'bm25', topK: 3, rrfK: 30 });
-  check('Updated mode is bm25', updated.retrievalMode === 'bm25');
-  check('Updated topK is 3', updated.topK === 3);
-  check('Updated rrfK is 30', updated.rrfK === 30);
-  check('topN unchanged from default', updated.topN === 20);
-  check('embeddingsEnabled unchanged', updated.embeddingsEnabled === true);
+  it('should persist settings to disk and load across instances', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings2 = new SettingsService(persistence);
+    const fromDisk = settings2.get();
 
-  // Test 4: Updated settings load from disk
-  const settings3 = new SettingsService(persistence);
-  const reloaded = settings3.get();
-  check('bm25 mode loaded from disk', reloaded.retrievalMode === 'bm25');
-  check('topK=3 loaded from disk', reloaded.topK === 3);
-  check('rrfK=30 loaded from disk', reloaded.rrfK === 30);
+    expect(fromDisk.retrievalMode).toBe('hybrid');
+    expect(fromDisk.topK).toBe(5);
+  });
 
-  // Test 5: Cache works (same instance returns cached values without re-reading)
-  const cached = settings.get();
-  check('Cache returns same mode', cached.retrievalMode === 'bm25');
-  check('Cache returns same topK', cached.topK === 3);
+  it('should update settings and return new values', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
 
-  // Test 6: Invalid values rejected
-  const beforeInvalid = settings.get();
-  const afterInvalidMode = settings.set({ retrievalMode: 'invalid' as any });
-  check('Invalid mode rejected', afterInvalidMode.retrievalMode === beforeInvalid.retrievalMode);
+    const updated = settings.set({ retrievalMode: 'bm25', topK: 3, rrfK: 30 });
+    expect(updated.retrievalMode).toBe('bm25');
+    expect(updated.topK).toBe(3);
+    expect(updated.rrfK).toBe(30);
+    expect(updated.topN).toBe(20);
+    expect(updated.embeddingsEnabled).toBe(true);
+  });
 
-  const afterInvalidTopK = settings.set({ topK: -1 });
-  check('Negative topK rejected', afterInvalidTopK.topK === beforeInvalid.topK);
+  it('should load updated settings from disk', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings3 = new SettingsService(persistence);
+    const reloaded = settings3.get();
 
-  const afterInvalidTopN = settings.set({ topN: 0 });
-  check('Zero topN rejected', afterInvalidTopN.topN === beforeInvalid.topN);
+    expect(reloaded.retrievalMode).toBe('bm25');
+    expect(reloaded.topK).toBe(3);
+    expect(reloaded.rrfK).toBe(30);
+  });
 
-  const afterInvalidRrfK = settings.set({ rrfK: -5 });
-  check('Negative rrfK rejected', afterInvalidRrfK.rrfK === beforeInvalid.rrfK);
+  it('should return cached values without re-reading', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
 
-  const afterInvalidFloat = settings.set({ topK: 3.5 });
-  check('Float topK rejected', afterInvalidFloat.topK === beforeInvalid.topK);
+    const cached = settings.get();
+    expect(cached.retrievalMode).toBe('bm25');
+    expect(cached.topK).toBe(3);
+  });
 
-  const afterInvalidBool = settings.set({ embeddingsEnabled: 'yes' as any });
-  check('Non-boolean embeddingsEnabled rejected', afterInvalidBool.embeddingsEnabled === beforeInvalid.embeddingsEnabled);
+  it('should reject invalid values', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
 
-  // Test 7: Partial update preserves other values
-  settings.set({ retrievalMode: 'hybrid', topK: 5, topN: 20, rrfK: 60, embeddingsEnabled: true });
-  const partial = settings.set({ topK: 10 });
-  check('Partial update preserves mode', partial.retrievalMode === 'hybrid');
-  check('Partial update preserves topN', partial.topN === 20);
-  check('Partial update sets topK to 10', partial.topK === 10);
+    const beforeInvalid = settings.get();
 
-  // Test 8: getDefaults returns a fresh copy
-  const defaults2 = settings.getDefaults();
-  check('getDefaults returns hybrid mode', defaults2.retrievalMode === 'hybrid');
-  check('getDefaults returns topK=5', defaults2.topK === 5);
-  defaults2.topK = 999;
-  check('Modifying returned defaults does not affect cached copy', settings.get().topK !== 999);
+    const afterInvalidMode = settings.set({ retrievalMode: 'invalid' as any });
+    expect(afterInvalidMode.retrievalMode).toBe(beforeInvalid.retrievalMode);
 
-  // Test 9: Corrupted settings.json falls back to defaults
-  fs.writeFileSync(path.join(dataDir, 'settings.json'), '{invalid json}', 'utf-8');
-  const settings4 = new SettingsService(persistence);
-  const afterCorrupt = settings4.get();
-  check('Corrupted file returns defaults', afterCorrupt.retrievalMode === 'hybrid');
+    const afterInvalidTopK = settings.set({ topK: -1 });
+    expect(afterInvalidTopK.topK).toBe(beforeInvalid.topK);
 
-  // Summary
-  if (failed > 0) {
-    console.error(`\n=== FAILED: ${failed} check(s) failed ===`);
-    process.exit(1);
-  } else {
-    console.log(`\n=== ALL SETTINGS TESTS PASSED ===`);
-  }
-}
+    const afterInvalidTopN = settings.set({ topN: 0 });
+    expect(afterInvalidTopN.topN).toBe(beforeInvalid.topN);
 
-run().catch(err => {
-  console.error('Test error:', err);
-  process.exit(1);
+    const afterInvalidRrfK = settings.set({ rrfK: -5 });
+    expect(afterInvalidRrfK.rrfK).toBe(beforeInvalid.rrfK);
+
+    const afterInvalidFloat = settings.set({ topK: 3.5 });
+    expect(afterInvalidFloat.topK).toBe(beforeInvalid.topK);
+
+    const afterInvalidBool = settings.set({ embeddingsEnabled: 'yes' as any });
+    expect(afterInvalidBool.embeddingsEnabled).toBe(beforeInvalid.embeddingsEnabled);
+  });
+
+  it('should preserve other values on partial update', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+
+    settings.set({ retrievalMode: 'hybrid', topK: 5, topN: 20, rrfK: 60, embeddingsEnabled: true });
+    const partial = settings.set({ topK: 10 });
+
+    expect(partial.retrievalMode).toBe('hybrid');
+    expect(partial.topN).toBe(20);
+    expect(partial.topK).toBe(10);
+  });
+
+  it('should return fresh copy from getDefaults', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+
+    const defaults2 = settings.getDefaults();
+    expect(defaults2.retrievalMode).toBe('hybrid');
+    expect(defaults2.topK).toBe(5);
+
+    defaults2.topK = 999;
+    expect(settings.get().topK).not.toBe(999);
+  });
+
+  it('should fall back to defaults when settings.json is corrupted', () => {
+    const persistence = new PersistenceService(dataDir);
+    fs.writeFileSync(path.join(dataDir, 'settings.json'), '{invalid json}', 'utf-8');
+
+    const settings4 = new SettingsService(persistence);
+    const afterCorrupt = settings4.get();
+    expect(afterCorrupt.retrievalMode).toBe('hybrid');
+  });
+
+  it('should return default LLM settings on first launch', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    const defaults = settings.getLlmSettings();
+
+    expect(defaults.modelName).toBe('');
+    expect(defaults.temperature).toBe(0.3);
+    expect(defaults.maxTokens).toBe(1024);
+    expect(defaults.streamEnabled).toBe(true);
+    expect(defaults.systemPrompt).toBe('');
+  });
+
+  it('should update LLM settings and return new values', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    const updated = settings.setLlmSettings({ temperature: 0.5, maxTokens: 2048, streamEnabled: false });
+
+    expect(updated.temperature).toBe(0.5);
+    expect(updated.maxTokens).toBe(2048);
+    expect(updated.streamEnabled).toBe(false);
+  });
+
+  it('should clamp temperature > 1.0 to 1.0', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    const updated = settings.setLlmSettings({ temperature: 5.0 });
+
+    expect(updated.temperature).toBe(1.0);
+  });
+
+  it('should reject invalid LLM settings', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    const before = settings.getLlmSettings();
+
+    const afterNegTemp = settings.setLlmSettings({ temperature: -1 });
+    expect(afterNegTemp.temperature).toBe(before.temperature);
+
+    const afterBadTokens = settings.setLlmSettings({ maxTokens: 0 });
+    expect(afterBadTokens.maxTokens).toBe(before.maxTokens);
+
+    const afterFloatTokens = settings.setLlmSettings({ maxTokens: 500.5 });
+    expect(afterFloatTokens.maxTokens).toBe(before.maxTokens);
+
+    const afterBadStream = settings.setLlmSettings({ streamEnabled: 'yes' as any });
+    expect(afterBadStream.streamEnabled).toBe(before.streamEnabled);
+  });
+
+  it('should persist LLM settings alongside retrieval settings', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    settings.setLlmSettings({ modelName: 'custom-model', temperature: 0.7 });
+
+    const fresh = new SettingsService(persistence);
+    const loaded = fresh.getLlmSettings();
+    expect(loaded.modelName).toBe('custom-model');
+    expect(loaded.temperature).toBe(0.7);
+  });
+
+  it('should preserve modelName setting on partial update', () => {
+    const persistence = new PersistenceService(dataDir);
+    const settings = new SettingsService(persistence);
+    settings.setLlmSettings({ modelName: 'my-model', temperature: 0.5 });
+    const partial = settings.setLlmSettings({ temperature: 0.9 });
+
+    expect(partial.modelName).toBe('my-model');
+    expect(partial.temperature).toBe(0.9);
+  });
 });
