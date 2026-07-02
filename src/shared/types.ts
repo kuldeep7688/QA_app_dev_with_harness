@@ -106,6 +106,10 @@ export const IPC_CHANNELS = {
   GET_SETTINGS: 'settings:get',
   SET_SETTINGS: 'settings:set',
 
+  // LLM Settings
+  LLM_SETTINGS_GET: 'llm:settings:get',
+  LLM_SETTINGS_SET: 'llm:settings:set',
+
   // App
   RESET_DATA: 'app:reset',
 } as const;
@@ -116,6 +120,14 @@ export interface RetrievalSettings {
   topN: number;
   rrfK: number;
   embeddingsEnabled: boolean;
+}
+
+export interface LlmSettings {
+  modelName: string;
+  temperature: number;
+  maxTokens: number;
+  streamEnabled: boolean;
+  systemPrompt: string;
 }
 
 export interface FeedbackEntry {
