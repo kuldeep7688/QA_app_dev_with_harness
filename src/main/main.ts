@@ -117,7 +117,7 @@ function initializeServices() {
   // Initialize services with database instance
   const documentService = new DocumentService(persistence, db);
   const indexingService = new IndexingService(persistence, db);
-  const qaService = new QaService(db, embed, () => settingsService.get(), llmProvider);
+  const qaService = new QaService(db, embed, () => settingsService.get(), llmProvider, () => settingsService.getLlmSettings());
 
   registerIpcHandlers(ipcMain, {
     documentService,
