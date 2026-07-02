@@ -1,7 +1,12 @@
 import OpenAI from 'openai';
 import { getEnvConfig } from '../env-config';
 import { logger } from '../logger';
-import type { ChatMessage, ChatResponse, StreamChunk, LlmOptions, LlmProvider } from './types';
+import type { ChatMessage, ChatResponse, StreamChunk, LlmOptions, LlmProvider, TokenUsage } from './types';
+
+/** Rough token estimate: ~4 chars per token for English text. */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
 
 const log = logger.forService('NvidiaProvider');
 
@@ -107,9 +112,14 @@ export class NvidiaProvider implements LlmProvider {
     });
 
     let fullContent = '';
-    let usage: { prompt: number; completion: number; total: number } | undefined;
+    let usage: TokenUsage | undefined;
+    let promptText = '';
 
     try {
+      for (const msg of messages) {
+        promptText += msg.content + '\n';
+      }
+
       const stream = await this.client.chat.completions.create({
         model,
         messages: this.sanitizeMessages(messages),
@@ -135,6 +145,14 @@ export class NvidiaProvider implements LlmProvider {
             total: chunk.usage.total_tokens,
           };
         }
+      }
+
+      // Estimate token usage if the API didn't return it in stream
+      if (!usage) {
+        const completionTokens = estimateTokens(fullContent);
+        const promptTokens = estimateTokens(promptText);
+        usage = { prompt: promptTokens, completion: completionTokens, total: promptTokens + completionTokens };
+        log.debug('Estimated token usage (API did not return usage in stream)', { prompt: usage.prompt, completion: usage.completion, total: usage.total });
       }
 
       yield {
