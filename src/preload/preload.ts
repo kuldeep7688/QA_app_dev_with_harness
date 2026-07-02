@@ -30,6 +30,8 @@ const IPC_CHANNELS = {
   CANCEL_QUESTION: 'qa:cancel',
   GET_SETTINGS: 'settings:get',
   SET_SETTINGS: 'settings:set',
+  LLM_SETTINGS_GET: 'llm:settings:get',
+  LLM_SETTINGS_SET: 'llm:settings:set',
 } as const;
 
 console.log('[Preload] IPC_CHANNELS:', IPC_CHANNELS);
@@ -89,6 +91,11 @@ const api = {
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
     set: (partial: Partial<import('../shared/types').RetrievalSettings>) => ipcRenderer.invoke(IPC_CHANNELS.SET_SETTINGS, partial),
+  },
+  llmSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_SETTINGS_GET) as Promise<import('../shared/types').LlmSettings>,
+    set: (partial: Partial<import('../shared/types').LlmSettings>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.LLM_SETTINGS_SET, partial) as Promise<import('../shared/types').LlmSettings>,
   },
   llm: {
     health: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_HEALTH),

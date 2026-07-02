@@ -44,6 +44,10 @@ declare global {
         get: () => Promise<import('../shared/types').RetrievalSettings>;
         set: (partial: Partial<import('../shared/types').RetrievalSettings>) => Promise<import('../shared/types').RetrievalSettings>;
       };
+      llmSettings: {
+        get: () => Promise<import('../shared/types').LlmSettings>;
+        set: (partial: Partial<import('../shared/types').LlmSettings>) => Promise<import('../shared/types').LlmSettings>;
+      };
       llm: {
         health: () => Promise<{ ok: boolean; model?: string; latencyMs?: number; error?: string }>;
       };
