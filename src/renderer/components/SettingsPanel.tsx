@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react';
 
-interface RetrievalSettings {
-  retrievalMode: 'hybrid' | 'bm25' | 'vector';
-  topK: number;
-  topN: number;
-  rrfK: number;
-  embeddingsEnabled: boolean;
-}
+import type { RetrievalSettings, LlmSettings } from '../../shared/types';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -14,17 +8,25 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [settings, setSettingsState] = useState<RetrievalSettings | null>(null);
+  const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    window.knowledgeBase.settings.get().then(setSettingsState);
+    Promise.all([
+      window.knowledgeBase.settings.get(),
+      window.knowledgeBase.llmSettings.get(),
+    ]).then(([ret, llm]) => {
+      setSettingsState(ret);
+      setLlmSettingsState(llm);
+    });
   }, []);
 
   const handleSave = async () => {
-    if (!settings) return;
+    if (!settings || !llmSettings) return;
     setSaving(true);
     try {
       const updated = await window.knowledgeBase.settings.set(settings as Partial<RetrievalSettings>);
+      await window.knowledgeBase.llmSettings.set(llmSettings as Partial<LlmSettings>);
       setSettingsState(updated);
       onClose();
     } catch {
@@ -37,7 +39,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     setSettingsState({ ...settings, [key]: value });
   };
 
-  if (!settings) {
+  const updateLlm = <K extends keyof LlmSettings>(key: K, value: LlmSettings[K]) => {
+    if (!llmSettings) return;
+    setLlmSettingsState({ ...llmSettings, [key]: value });
+  };
+
+  if (!settings || !llmSettings) {
     return null;
   }
 
@@ -84,7 +91,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
       }}>
         <h3 style={{ margin: '0 0 4px', color: '#e0e0e0', fontSize: '16px' }}>
-          Retrieval Settings
+          Settings
         </h3>
         <p style={{ margin: '0 0 20px', color: '#666', fontSize: '12px' }}>
           Changes take effect on the next question.
@@ -150,6 +157,74 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           <label htmlFor="embeddingsEnabled" style={{ color: '#e0e0e0', fontSize: '13px' }}>
             Embeddings Enabled
           </label>
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #0f3460', margin: '20px 0' }} />
+
+        <h3 style={{ margin: '0 0 4px', color: '#e0e0e0', fontSize: '16px' }}>
+          LLM Settings
+        </h3>
+        <p style={{ margin: '0 0 20px', color: '#666', fontSize: '12px' }}>
+          Override .env defaults for the next question.
+        </p>
+
+        <div style={{ marginBottom: '14px' }}>
+          <label style={labelStyle}>Model Name (leave empty for env default)</label>
+          <input
+            type="text"
+            value={llmSettings.modelName}
+            onChange={(e) => updateLlm('modelName', e.target.value)}
+            style={inputStyle}
+            placeholder="google/gemma-2-2b-it"
+          />
+        </div>
+
+        <div style={{ marginBottom: '14px' }}>
+          <label style={labelStyle}>Temperature: {llmSettings.temperature.toFixed(2)}</label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={llmSettings.temperature}
+            onChange={(e) => updateLlm('temperature', parseFloat(e.target.value))}
+            style={{ width: '100%', accentColor: '#533483' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '14px' }}>
+          <label style={labelStyle}>Max Tokens</label>
+          <input
+            type="number"
+            min={1}
+            max={32768}
+            value={llmSettings.maxTokens}
+            onChange={(e) => updateLlm('maxTokens', Math.max(1, parseInt(e.target.value) || 1))}
+            style={inputStyle}
+          />
+        </div>
+
+        <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            type="checkbox"
+            id="streamEnabled"
+            checked={llmSettings.streamEnabled}
+            onChange={(e) => updateLlm('streamEnabled', e.target.checked)}
+            style={{ accentColor: '#533483' }}
+          />
+          <label htmlFor="streamEnabled" style={{ color: '#e0e0e0', fontSize: '13px' }}>
+            Stream Answers
+          </label>
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={labelStyle}>System Prompt (leave empty for default)</label>
+          <textarea
+            value={llmSettings.systemPrompt}
+            onChange={(e) => updateLlm('systemPrompt', e.target.value)}
+            style={{ ...inputStyle, minHeight: '60px', resize: 'vertical', fontFamily: 'inherit' }}
+            placeholder="Default: Answer using ONLY the provided document excerpts..."
+          />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
