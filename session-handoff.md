@@ -1,8 +1,20 @@
 # Session Handoff
 
-## Current State (2026-06-29)
+## Current State (2026-07-01)
 
-### Recently Completed (2026-06-28)
+### Recently Completed (2026-07-01)
+
+**LLM Settings Panel** (2026-07-01)
+- Added LlmSettings interface to shared/types.ts: modelName, temperature (0-1, default 0.3), maxTokens (default 1024), streamEnabled (default true), systemPrompt
+- IPC channels llm:settings:get and llm:settings:set registered
+- SettingsService: getLlmSettings(), setLlmSettings(), getLlmDefaults() with validation (temperature clamped at 1.0, maxTokens must be positive integer, streamEnabled must be boolean)
+- Fixed data-loss bug: SettingsService.set() now merges with existing data to preserve LLM settings
+- SettingsPanel UI: model name text input, temperature slider (0-1, step 0.05), max tokens number input, stream toggle checkbox, system prompt textarea
+- QaService accepts getLlmSettings callback; buildPrompt() uses custom systemPrompt; ask()/askStream() pass model/temperature/maxTokens to provider
+- 6 new tests all PASS, full suite 163 tests/23 files PASS
+- Cleanup scanner reports CLEAN
+
+### Older Completed
 
 **QaService Wired to Hybrid Retriever** (2026-06-28)
 - QaService.ask() now calls retriever.hybridSearch() instead of getAllChunks() + keyword overlap
@@ -308,45 +320,74 @@
 - Errors logged at ERROR with sanitised data
 - ConversationHistory renders errors with red background, red text, "error" status indicator
 
-### Feature Status Update: 42 features complete! (49 total)
-*Retroactive: prompt-builder and real-llm-answer now marked "pass" in feature_list.json (were missed in Phase F update)*
+### Feature Status Update: 44 features complete! (49 total)
+
+## Recently Completed (2026-07-01 — Markdown Rendering)
+
+### markdown-rendering
+- Installed `react-markdown@10.1.0` + `remark-gfm@4.0.1`
+- Updated `ConversationHistory.tsx`:
+  - Imported `ReactMarkdown` + `remarkGfm`
+  - Replaced plain-text answer rendering with `<ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>` for both history entries and streaming partial answers
+  - Added `markdownComponents` object with custom renderers:
+    - `code` (inline): gold `#ffcc88` text on `#2a2a4e` background, rounded corners
+    - `code` (fenced/block): white text on `#0d0d1a` dark background, `#2a2a4e` border, padding, rounded
+    - `table/th/td`: bordered dark theme with `#1a1a3e` header backgrounds
+    - `blockquote`: purple `#533483` left border, muted `#1a1a2a` background
+    - `a`: blue `#88bbff` links with `target="_blank"`
+  - Added `@keyframes blink` animation and monospace font stack to `index.html`
+  - Plain text degrades gracefully (ReactMarkdown renders it identically)
+- TypeScript compiles 0 errors, Vite build succeeds (287 modules, 328 kB)
+- init.sh all 5 checks pass
 
 ## Next Features to Implement (prioritized)
 
-**Immediate: Phase H: UX & Quality (5 features remaining)**
-- markdown-rendering - react-markdown + remark-gfm
+**Immediate: Phase H: UX & Quality (3 features remaining)**
 - token-usage-tracking - Token counts in UI and persistence
 - llm-settings - LLM settings panel (model, temperature, etc.)
 - answer-eval - Answer quality eval script
-- llm-health-ui - LLM status dot in StatusBar
 
 **Deferred: Phase D: Quality Measurement (3 features)**
 - golden-eval-set - Create test queries with expected chunks
 - eval-runner - Automated precision@5 and MRR measurement
 - eval-in-ci - CI integration for regression detection
 
+### Additional Changes (2026-07-01 — Gemma compat + LLM Health UI)
+
+- `src/services/providers/nvidia-provider.ts` — UPDATED: `sanitizeMessages()` handles Gemma models (system→user conversion, merge with `Question:` prefix for strict user/assistant alternation)
+- `src/services/qa-service.ts` — UPDATED: `DEFAULT_SYSTEM_PROMPT` rewritten from meta-instructions to direct instructions (avoids Gemma preamble)
+- `src/renderer/components/StatusBar.tsx` — UPDATED: added LLM status dot + model name next to index dot, uses `AppStatus.llmStatus` and `llmModel`
+- `feature_list.json` — llm-health-ui set to "pass" (43/49 complete)
+
 ### Files Modified (2026-07-01 — Phase G: Streaming, Cancel, Error Handling)
 
-- `src/services/qa-service.ts` — UPDATED: added `askStream()`, `classifyLlmError()`, import of `StreamChunk`
+- `src/services/qa-service.ts` — UPDATED: added `askStream()`, `classifyLlmError()`, import of `StreamChunk`, rewritten `DEFAULT_SYSTEM_PROMPT`
+- `src/services/providers/nvidia-provider.ts` — UPDATED: `sanitizeMessages()` for Gemma model compatibility
 - `src/main/ipc-handlers.ts` — UPDATED: added `qa:ask-stream` and `qa:cancel` handlers, `activeStreams` Map
-- `src/preload/preload.ts` — UPDATED: added `qa.askStream()`, `qa.cancel()`, `qa.onStreamChunk()`, `qa.onStreamDone()`, `STREAM_CHUNK`/`STREAM_DONE` channels
-- `src/renderer/types.d.ts` — UPDATED: added streaming API type declarations
-- `src/renderer/App.tsx` — REWRITTEN: uses streaming API, streamingEntry state, event listeners, isStreaming flag
+- `src/preload/preload.ts` — UPDATED: added streaming API, `STREAM_CHUNK`/`STREAM_DONE` channels
+- `src/renderer/types.d.ts` — UPDATED: streaming API type declarations
+- `src/renderer/App.tsx` — REWRITTEN: streaming state, event listeners, `isStreaming` flag
 - `src/renderer/components/QuestionPanel.tsx` — UPDATED: `onCancel` prop, Cancel button, `isStreaming` prop, disabled input
-- `src/renderer/components/ConversationHistory.tsx` — UPDATED: `streamingEntry` prop with typing cursor, error display, token usage info, cancelled state
-- `test/llm-provider.test.ts` — UPDATED: 16 tests (10 new: askStream chunks, cancellation, mock fallback, no-citations refusal, 6 classifyLlmError tests)
-- `feature_list.json` — 3 Phase G + 2 retroactive Phase F features set to "pass" with evidence (42/49 complete)
+- `src/renderer/components/ConversationHistory.tsx` — UPDATED: `streamingEntry` prop, error display, token usage, cancelled state
+- `src/renderer/components/StatusBar.tsx` — UPDATED: LLM status dot + model name
+- `test/llm-provider.test.ts` — UPDATED: 16 tests (10 new)
+- `feature_list.json` — 3 Phase G + 2 retroactive Phase F + llm-health-ui → "pass" (43/49 complete)
+
+### Files Modified (2026-07-01 — Markdown Rendering)
+
+- `package.json` — UPDATED: added react-markdown + remark-gfm dependencies
+- `src/renderer/components/ConversationHistory.tsx` — UPDATED: ReactMarkdown rendering with custom components for code/tables/blockquotes/links
+- `src/renderer/index.html` — UPDATED: added @keyframes blink animation, monospace font stack for code blocks
+- `feature_list.json` — markdown-rendering → "pass" (44/49 complete)
 - `session-handoff.md` — Updated
 - `agent-progress.md` — Updated
-
-## If Resuming This Session
 
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
 4. Run `npm rebuild better-sqlite3` before vitest tests (if they fail with NODE_MODULE_VERSION mismatch)
-5. Read `feature_list.json` to see current feature status (42/49 complete)
-6. Next: Implement Phase H features (markdown-rendering, token-usage-tracking, llm-settings, answer-eval, llm-health-ui), then Phase D eval features.
+5. Read `feature_list.json` to see current feature status (44/49 complete)
+6. Next: Implement Phase H features (token-usage-tracking, llm-settings, answer-eval), then Phase D eval features.
 7. Testing notes:
    - Use `npx vitest run test/<test-file>.ts` to run individual tests (vitest-compatible tests only)
    - Some old test files use custom runners and are incompatible with vitest (pre-existing)

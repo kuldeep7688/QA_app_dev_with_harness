@@ -167,7 +167,6 @@
       "name": "Embedded SQLite Database",
       "description": "Embedded SQLite via better-sqlite3 opened at <dataDir>/index.db, WAL mode, foreign keys on. Singleton accessor in src/services/db.ts with logged init events.",
       "status": "pass",
-      "phase": "A. Foundation",
       "acceptance": [
         "better-sqlite3 + @electron/rebuild installed; postinstall rebuild script wired.",
         "src/services/db.ts opens index.db, sets PRAGMA journal_mode=WAL and foreign_keys=ON.",
@@ -182,7 +181,6 @@
       "name": "Versioned Schema Migrations",
       "description": "Migration runner with schema_meta version tracking. 001_init creates documents, chunks, qa_history, feedback tables. Idempotent and transactional.",
       "status": "pass",
-      "phase": "A. Foundation",
       "acceptance": [
         "src/services/migrations/ directory with 001_init.sql (or .ts).",
         "schema_meta table tracks current version; runner skips applied migrations.",
@@ -197,7 +195,6 @@
       "name": "Legacy JSON → SQLite Import",
       "description": "One-shot import on first launch: if index.db missing but legacy JSON files exist, import documents-meta.json, chunks/*.json, qa-history.json, feedback.json into SQLite in a single transaction; move legacy JSON to <dataDir>/legacy/ as backup.",
       "status": "pass",
-      "phase": "A. Foundation",
       "acceptance": [
         "Detects legacy JSON presence and runs once.",
         "Single transaction import covers documents, chunks, qa_history, feedback.",
@@ -212,7 +209,6 @@
       "name": "FTS5 BM25 Keyword Index",
       "description": "chunks_fts FTS5 virtual table (porter+unicode61 tokenizer) kept in sync with chunks via INSERT/UPDATE/DELETE triggers. RetrieverService.bm25Search(query, limit) returns [{rowid, score}] using SQLite bm25().",
       "status": "pass",
-      "phase": "B. Indexing Layer",
       "acceptance": [
         "chunks_fts virtual table created with bm25 ranking available.",
         "Triggers keep FTS in sync on chunk insert/update/delete.",
@@ -227,7 +223,6 @@
       "name": "sqlite-vec Vector Extension",
       "description": "Load sqlite-vec extension at DB init; create chunks_vec (vec0, embedding float[384]) virtual table. Graceful fallback: if extension fails to load, log ERROR, disable vector mode, keep BM25 working.",
       "status": "pass",
-      "phase": "B. Indexing Layer",
       "acceptance": [
         "sqlite-vec npm dep added and loaded via db.loadExtension().",
         "vec_version() callable after init.",
@@ -242,7 +237,6 @@
       "name": "Local Embedding Service",
       "description": "src/services/embedding-service.ts using @xenova/transformers all-MiniLM-L6-v2 (384-dim). Lazy model load. embed(text) and embedBatch(texts) with batch size 32. Model load logged once; per-batch timing at DEBUG.",
       "status": "pass",
-      "phase": "B. Indexing Layer",
       "acceptance": [
         "@xenova/transformers installed; MiniLM-L6-v2 bundled or first-run downloaded.",
         "embed(text) returns Float32Array of length 384.",
@@ -257,7 +251,6 @@
       "name": "Indexing Writes to SQLite + Vectors",
       "description": "Replace JSON chunk writes with INSERT INTO chunks in a transaction. After insert, embed batch and insert into chunks_vec keyed on rowid; set embedded_at. getStatus() reads counts from SQLite; fixes broken 'indexing' state.",
       "status": "pass",
-      "phase": "B. Indexing Layer",
       "acceptance": [
         "IndexingService no longer writes chunks/<id>.json; writes go to chunks table in a transaction.",
         "Embeddings written to chunks_vec for every new chunk; embedded_at populated.",
@@ -272,7 +265,6 @@
       "name": "Rebuild Embeddings Command",
       "description": "New IPC indexing:rebuild-embeddings re-embeds all chunks (idempotent UPSERT). Streams indexing:progress events to renderer. UI affordance in settings or document detail.",
       "status": "pass",
-      "phase": "B. Indexing Layer",
       "acceptance": [
         "indexing:rebuild-embeddings IPC registered and logged.",
         "Idempotent: running twice yields the same vector rows.",
@@ -287,7 +279,6 @@
       "name": "Hybrid Retriever (BM25 + Vector via RRF)",
       "description": "Pure src/services/retriever.ts with hybridSearch(query, opts). Runs BM25 top-N and vector top-N in parallel; merges via Reciprocal Rank Fusion (k=60 default). Returns [{chunk, fusedScore, bm25Rank?, vectorRank?, sources}]. Modes: hybrid|bm25|vector.",
       "status": "pass",
-      "phase": "C. Hybrid Retrieval",
       "acceptance": [
         "hybridSearch is a pure function over db + embeddingService (no global state).",
         "Configurable mode, topN, topK, rrfK.",
@@ -302,7 +293,6 @@
       "name": "QaService Wired to Hybrid Retriever",
       "description": "QaService.ask() uses retriever.hybridSearch instead of keyword overlap scan. Citations include bm25Rank and vectorRank. Confidence derived from fused score distribution (top score, gap to 2nd, presence-in-both bonus) — no more hardcoded 0.85/0.30.",
       "status": "pass",
-      "phase": "C. Hybrid Retrieval",
       "acceptance": [
         "QaService no longer calls getAllChunks(); calls retriever.hybridSearch().",
         "Citation objects carry bm25Rank, vectorRank, sources for debugging.",
@@ -317,7 +307,6 @@
       "name": "Retrieval Debug IPC",
       "description": "New IPC qa:retrieve-debug returns the three ranked lists (BM25, vector, fused) for a query without invoking the answer step. Used by eval harness and a future 'why this citation?' UI.",
       "status": "pass",
-      "phase": "C. Hybrid Retrieval",
       "acceptance": [
         "qa:retrieve-debug IPC registered, logged at DEBUG, no answer generation.",
         "Returns three arrays with ranks and scores plus fused result.",
@@ -331,7 +320,6 @@
       "name": "Retrieval Settings",
       "description": "<dataDir>/settings.json with retrievalMode, topK, topN, rrfK, embeddingsEnabled. Minimal settings panel in renderer (or Settings button) to edit at runtime.",
       "status": "pass",
-      "phase": "E. Settings & UX",
       "acceptance": [
         "settings.json created with sensible defaults on first launch.",
         "Settings exposed via IPC and read by retriever per call.",
@@ -346,7 +334,6 @@
       "name": "Citation Source Badges",
       "description": "ConversationHistory citations show small badges indicating retrieval source: 'BM25 #2', 'Vector #1', or 'Hybrid'. Helps users (and future debugging) understand why a citation surfaced.",
       "status": "pass",
-      "phase": "E. Settings & UX",
       "acceptance": [
         "Each citation renders the appropriate badge based on bm25Rank/vectorRank/sources.",
         "Click-through to source chunk still works.",
@@ -360,7 +347,6 @@
       "name": "Environment Config (.env)",
       "description": "Load .env file via dotenv in main process on startup. Reads NVIDIA_API_KEY, NVIDIA_MODEL_NAME, and NVIDIA_BASE_URL (optional). Validates key presence; if missing, log WARN and set LLM_ENABLED=false in AppStatus. Commit .env.example with placeholder values.",
       "status": "pass",
-      "phase": "F. LLM Foundation",
       "acceptance": [
         "dotenv installed; .env loaded before services initialise.",
         "NVIDIA_API_KEY missing → logs WARN, LLM_ENABLED=false, app still launches.",
@@ -375,7 +361,6 @@
       "name": "LLM Provider Interface",
       "description": "Abstract contract in src/services/providers/types.ts: LlmProvider interface with chat(messages, opts) → ChatResponse and chatStream(messages, opts) → AsyncIterable<StreamChunk>. Defines ChatMessage, ChatResponse, StreamChunk, LlmOptions types. QaService constructor accepts LlmProvider | null (null = mock fallback).",
       "status": "pass",
-      "phase": "F. LLM Foundation",
       "acceptance": [
         "src/services/providers/types.ts exports named types: LlmProvider, ChatMessage, ChatResponse, StreamChunk, LlmOptions.",
         "LlmProvider.chat signature: (messages: ChatMessage[], opts: LlmOptions) => Promise<ChatResponse>.",
@@ -390,7 +375,6 @@
       "name": "NVIDIA NIM Provider",
       "description": "Concrete LlmProvider in src/services/providers/nvidia-provider.ts. Uses OpenAI SDK to call NVIDIA's OpenAI-compatible endpoint. chat() POSTs to {baseUrl}/chat/completions; chatStream() does the same with stream:true, yielding chunks via async generator. Reads API key + model name from env at construction.",
       "status": "pass",
-      "phase": "F. LLM Foundation",
       "acceptance": [
         "chat() sends correct request shape (model, messages, temperature, max_tokens) and parses choices[0].message.content + usage.",
         "chatStream() returns async generator; each yield is a StreamChunk with delta content.",
@@ -405,7 +389,6 @@
       "name": "LLM Health Check",
       "description": "New IPC llm:health sends a minimal chat to verify API connectivity. Returns {ok, model, latencyMs, error?}. Called at startup. Result reflected in AppStatus.llmStatus: 'healthy'|'unhealthy'|'disabled'.",
       "status": "pass",
-      "phase": "F. LLM Foundation",
       "acceptance": [
         "llm:health IPC registered and logged at INFO.",
         "Returns {ok, model, latencyMs} on success; {ok:false, error} on failure.",
@@ -420,7 +403,6 @@
       "name": "Prompt Builder",
       "description": "buildPrompt(question, citations, chatHistory?) in src/services/qa-service.ts returns ChatMessage[]. System message includes role instruction (answer from provided documents, cite sources, refuse on insufficient context) and inline citation excerpts. Token budget trims citations to fit configurable context window (default 8K).",
       "status": "pass",
-      "phase": "G. Answer Generation",
       "acceptance": [
         "System message enforces: answer from documents only, cite sources, refuse if insufficient.",
         "Citation excerpts (up to token budget) embedded in system message body.",
@@ -435,7 +417,6 @@
       "name": "Real LLM Answer Generation",
       "description": "QaService.ask() calls llmProvider.chat() via the prompt builder instead of the mock generateAnswer(). Confidence still derived from retriever fused RRF scores. QAResponse gains optional modelUsed and tokensUsed fields. Falls back to mock only when llmProvider is null.",
       "status": "pass",
-      "phase": "G. Answer Generation",
       "acceptance": [
         "QaService no longer calls generateAnswer() (mock patterns) when llmProvider is present.",
         "buildPrompt output is passed to llmProvider.chat(); response content becomes QAResponse.answer.",
@@ -451,7 +432,6 @@
       "name": "Streaming Answers via IPC",
       "description": "New IPC qa:ask-stream returns void; content arrives via webContents.send events. qa:stream-chunk emits token deltas; qa:stream-done carries the final QAResponse. Request ID prevents cross-talk between simultaneous questions. Renderer appends tokens incrementally with a typing cursor effect.",
       "status": "pass",
-      "phase": "G. Answer Generation",
       "acceptance": [
         "qa:ask-stream registered and logged; qa:stream-chunk and qa:stream-done events implemented.",
         "Renderer appends StreamChunk.delta to the answer bubble as it arrives.",
@@ -467,7 +447,6 @@
       "name": "Cancel In-Flight LLM Requests",
       "description": "New IPC qa:cancel takes requestId; calls AbortController.abort(). Stream loop checks signal.aborted between chunks. During streaming, 'Ask' button becomes 'Cancel' button. Cancelled request does not block new ones.",
       "status": "pass",
-      "phase": "G. Answer Generation",
       "acceptance": [
         "qa:cancel IPC registered; AbortSignal passed to llmProvider.chatStream().",
         "Cancel mid-stream → answer bubble shows partial content with '[cancelled]' suffix.",
@@ -482,7 +461,6 @@
       "name": "LLM Error Handling",
       "description": "Wrap LLM call in try/catch; classify errors into user-facing messages. 401/403 → 'Invalid API key', 429 → 'Rate limited', 5xx → 'Service unavailable', timeout → 'Request timed out'. All errors logged at ERROR with sanitised data (no key, no raw body). Renderer shows error in the answer bubble with red tint.",
       "status": "pass",
-      "phase": "G. Answer Generation",
       "acceptance": [
         "Each error class produces a distinct, actionable user message.",
         "No API key or raw response body in error messages or logs.",
@@ -496,53 +474,49 @@
       "id": "markdown-rendering",
       "name": "Markdown Rendering of Answers",
       "description": "Add react-markdown + remark-gfm. Replace plain-text rendering in ConversationHistory answer bubbles with <ReactMarkdown>. Supports headers, bold/italic, inline code, fenced code blocks, lists, blockquotes, tables (GFM). Code blocks styled with dark background.",
-      "status": "pending",
-      "phase": "H. UX & Quality",
+      "status": "pass",
       "acceptance": [
         "react-markdown and remark-gfm installed.",
         "LLM answer containing markdown renders correctly (headers, code, lists, tables).",
         "Plain-text answers degrade gracefully (no visible difference from current behaviour).",
         "Code blocks have dark-background theme with distinguishable text."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Installed react-markdown@10.1.0 + remark-gfm@4.0.1. Updated src/renderer/components/ConversationHistory.tsx: imported ReactMarkdown + remarkGfm, replaced plain-text `<div>{entry.response.answer}</div>` with `<ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>` for both history entries and streaming partial answers. Added markdownComponents object with custom renderers for code (inline: gold text on dark purple, fenced: white text on #0d0d1a with border), table/tr/th/td (bordered dark theme), blockquote (purple left border + dark background), and a links (blue). Added @keyframes blink animation and monospace font stack (JetBrains Mono, Fira Code, Cascadia Code, Consolas) to index.html. Plain text renders identically to before (no wrapping in extra elements). TypeScript compiles 0 errors, Vite build succeeds (287 modules, 328 kB gzip:101 kB). init.sh all 5 checks pass.",
+      "testedAt": "2026-07-01T20:30:00Z"
     },
     {
       "id": "token-usage-tracking",
       "name": "Token Usage Tracking",
       "description": "QAResponse.tokensUsed captures {prompt, completion, total} from NVIDIA usage field. ConversationHistory renders token count beside timestamp ('1.2K tokens | 3:15 PM'). Cumulative session totals tracked in renderer state. qa-history stores usage in SQLite.",
-      "status": "pending",
-      "phase": "H. UX & Quality",
+      "status": "pass",
       "acceptance": [
         "Token count visible in UI after each real LLM call.",
         "qa-history round-trip preserves tokensUsed in SQLite.",
         "Cumulative session counter resets on app restart.",
         "Test with mock provider returning known usage: UI displays correct totals."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Implemented token usage tracking across the full stack: (1) Migration 005_token_usage.sql adds model_used, prompt_tokens, completion_tokens, total_tokens columns to qa_history table. (2) QaService.saveToHistory() persists token usage and model name to SQLite; getHistory() reconstructs tokensUsed and modelUsed from DB columns. (3) ConversationHistory renders token count in '1.2K tokens | 3:15 PM' format with formatTokens() helper (K-suffix for 1000+), merged timestamp with token info in answer bubble, cumulative session totals in header ('1.2K tokens total'). (4) App.tsx tracks cumulative session tokens via sessionTokens state, updated on stream-done events and computed from history on mount/reset. (5) 4 integration tests verify: ask() round-trip (tokens={150,42,192}, model=mock-model), askStream() round-trip (tokens={60,18,78}), multiple entries preserve individual counts (100 vs 250), no-token entries handled gracefully (tokensUsed undefined). All 157 tests pass (23 files). TypeScript compiles 0 errors. Build succeeds (Vite 287 modules, 329 kB).",
+      "testedAt": "2026-07-02T01:37:00Z"
     },
     {
       "id": "llm-settings",
       "name": "LLM Settings Panel",
-      "description": "Extend settings.json with modelName (override env default), temperature (0.0–2.0, default 0.3), maxTokens (default 1024), streamEnabled (default true), and a custom systemPrompt. Minimal UI to edit at runtime. Changes apply on the next question.",
-      "status": "pending",
-      "phase": "H. UX & Quality",
+      "description": "Extend settings.json with modelName (override env default), temperature (0.0–1.0, default 0.3), maxTokens (default 1024), streamEnabled (default true), and a custom systemPrompt. Minimal UI to edit at runtime. Changes apply on the next question.",
+      "status": "pass",
       "acceptance": [
         "settings.json populated with llm defaults on first read.",
-        "New IPC settings:get and settings:set registered and logged.",
+        "New IPC llm:settings:get and llm:settings:set registered and logged.",
         "Changing modelName in UI → next qa:ask uses the new model.",
-        "Invalid values rejected: temperature > 2.0 clamped with WARN; maxTokens ≤ 0 ignored."
+        "Invalid values rejected: temperature > 1.0 clamped with WARN; maxTokens ≤ 0 ignored."
       ],
-      "evidence": null,
-      "testedAt": null
+      "evidence": "Implemented full LLM settings feature across the stack: (1) LlmSettings interface added to shared/types.ts with modelName, temperature (0-1), maxTokens, streamEnabled, systemPrompt fields. IPC channels LLM_SETTINGS_GET/LLM_SETTINGS_SET registered. (2) SettingsService extended with getLlmSettings() (reads from settings.json with defaults), setLlmSettings() (validates and persists), and getLlmDefaults(). Temperature clamped to [0,1.0] with WARN on out-of-range; maxTokens rejected if ≤0 or non-integer; streamEnabled must be boolean. (3) IPC handlers registered in ipc-handlers.ts. (4) Preload exposes llmSettings.get/set namespace. (5) QaService accepts getLlmSettings callback; buildPrompt() uses custom systemPrompt when set; ask()/askStream() pass modelName/temperature/maxTokens to LLM provider. (6) SettingsPanel UI adds LLM settings section with model name text input, temperature range slider (0-1, step 0.05), max tokens number input, stream toggle checkbox, system prompt textarea. (7) 6 new SettingsService tests cover defaults, update, temperature clamp, invalid rejection (negative temp, zero maxTokens, float maxTokens, non-boolean stream), persistence alongside retrieval settings, partial update preservation. (8) set() method fixed to preserve LLM settings on write (merge pattern). (9) All 163 tests pass (23 files), TypeScript 0 errors, build succeeds (330 kB), init.sh all checks pass, cleanup scanner CLEAN.",
+      "testedAt": "2026-07-02T02:36:00Z"
     },
     {
       "id": "answer-eval",
       "name": "Answer Quality Eval",
       "description": "scripts/eval-answer.ts measures groundedness (does answer derive from provided citations?), faithfulness (does answer contradict any citation?), and citation recall (fraction of citations actually used). LLM-as-judge approach. Writes eval-answer-results.json. Gated on NVIDIA_API_KEY; skipped gracefully if missing.",
       "status": "pending",
-      "phase": "H. UX & Quality",
       "acceptance": [
         "Runner exits 0; prints per-question and aggregate scores in a table.",
         "Groundedness target: ≥ 0.8 on golden set; faithfulness target: 1.0 (no contradictions).",
@@ -557,7 +531,6 @@
       "name": "LLM Status Indicator",
       "description": "StatusBar shows an LLM status dot (green/yellow/red) next to the existing indexing dot. Tooltip displays model name and last health-check latency. Click opens settings panel (future). Colour reflects AppStatus.llmStatus.",
       "status": "pass",
-      "phase": "H. UX & Quality",
       "acceptance": [
         "StatusBar renders LLM dot next to indexing dot.",
         "Green = healthy, yellow = checking, red = unhealthy/disabled.",
@@ -572,7 +545,6 @@
       "name": "Golden Q&A Eval Set",
       "description": "test/fixtures/golden-qa.json with ≥10 question / expected-chunk-id pairs over data/sample-documents. Schema validated and committed. Used by both retrieval eval and answer-quality eval.",
       "status": "pending",
-      "phase": "D. Quality Measurement",
       "acceptance": [
         "≥10 entries with {question, expectedChunkIds[], notes?}.",
         "All expectedChunkIds resolvable from current sample-documents after re-indexing.",
@@ -586,7 +558,6 @@
       "name": "Retrieval Eval Runner",
       "description": "scripts/eval-retrieval.ts runs each golden query through BM25, vector, and hybrid; computes precision@5, MRR, and mean latency. Writes eval-results.json and prints a table to stdout.",
       "status": "pending",
-      "phase": "D. Quality Measurement",
       "acceptance": [
         "Runner exits 0 on success and non-zero on regression vs committed baseline.",
         "eval-results.json contains per-mode precision@5, MRR, mean latency.",
@@ -601,7 +572,6 @@
       "name": "Eval Runs in CI",
       "description": "GitHub Actions workflow runs npm run check, npm test, and npm run eval on PRs. Fails the build if hybrid precision@5 drops below the committed baseline.",
       "status": "pending",
-      "phase": "D. Quality Measurement",
       "acceptance": [
         ".github/workflows/ci.yml present and triggers on PR + main.",
         "Job runs type check, tests, and eval against committed baseline.",

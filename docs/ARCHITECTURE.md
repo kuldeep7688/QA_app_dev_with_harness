@@ -248,7 +248,9 @@ CREATE VIRTUAL TABLE chunks_fts USING fts5(
 CREATE VIRTUAL TABLE chunks_vec USING vec0(embedding float[384]);
 
 CREATE TABLE qa_history (id INTEGER PRIMARY KEY, ts TEXT, question TEXT,
-                         answer TEXT, confidence REAL, citations_json TEXT);
+                         answer TEXT, confidence REAL, citations_json TEXT,
+                         model_used TEXT, prompt_tokens INTEGER,
+                         completion_tokens INTEGER, total_tokens INTEGER);
 CREATE TABLE feedback   (id TEXT PRIMARY KEY, response_ts TEXT, question TEXT,
                          rating TEXT, comment TEXT, submitted_at TEXT);
 CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -293,7 +295,7 @@ Services (post-migration)
   ├─ indexing-service.ts    -- chunks → SQLite + chunks_fts (triggers) + chunks_vec
   │                            stores vec_rowid in chunks table for join
   ├─ qa-service.ts          -- calls retriever; confidence from fused scores
-  ├─ settings-service.ts    -- RetrievalSettings CRUD with <dataDir>/settings.json
+  ├─ settings-service.ts    -- RetrievalSettings + LlmSettings CRUD with <dataDir>/settings.json
   │                            cache, validation, and WARN logs for invalid values
   └─ persistence-service.ts -- retained for raw content/<id>.txt files only
 ```
@@ -449,8 +451,10 @@ Services (post-LLM)
 | `qa:stream-chunk` (event) | M → R | Token delta per chunk | 🔜 |
 | `qa:stream-done` (event) | M → R | Final `QAResponse` with citations, usage | 🔜 |
 | `qa:cancel` | R → M | Abort in-flight request by `requestId` | 🔜 |
-| `settings:get` | R → M | Read settings JSON | ✅ |
-| `settings:set` | R → M | Write settings JSON | ✅ |
+| `settings:get` | R → M | Read retrieval settings | ✅ |
+| `settings:set` | R → M | Write retrieval settings | ✅ |
+| `llm:settings:get` | R → M | Read LLM settings | ✅ |
+| `llm:settings:set` | R → M | Write LLM settings | ✅ |
 
 ### Type Additions (✅ all implemented)
 
@@ -459,6 +463,9 @@ Services (post-LLM)
 interface TokenUsage { prompt: number; completion: number; total: number; }
 // QAResponse gains: modelUsed?: string, tokensUsed?: TokenUsage
 // AppStatus gains: llmStatus, llmModel
+
+// LlmSettings { modelName, temperature, maxTokens, streamEnabled, systemPrompt }
+// SettingsService.getLlmSettings / setLlmSettings with validation
 
 // providers/types.ts exports:
 //   LlmProvider (chat + chatStream + checkHealth)

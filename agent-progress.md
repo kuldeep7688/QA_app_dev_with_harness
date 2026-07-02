@@ -2267,9 +2267,9 @@ UPDATED: feature_list.json (3 features → pass)
 
 ---
 
-## Session: 2026-07-01 — Phase G: Streaming Answers + Cancel + Error Handling (3 features)
+## Session: 2026-07-01 — Phase G: Streaming, Cancel, Error + Gemma compat + LLM Health (6 features)
 
-**Duration:** ~30 minutes
+**Duration:** ~45 minutes
 
 ### Features Completed
 
@@ -2293,19 +2293,32 @@ UPDATED: feature_list.json (3 features → pass)
 - ConversationHistory renders errors with red background, red text, "error" indicator
 - 6 classifyLlmError tests: all error classes + API key sanitization
 
+#### llm-health-ui
+- StatusBar shows LLM status dot (green/red/grey) next to index dot
+- Model name displayed inline in parentheses
+- Uses AppStatus.llmStatus and AppStatus.llmModel
+
+#### Gemma compatibility fixes
+- `NvidiaProvider.sanitizeMessages()`: converts system→user for Gemma models
+- Merges consecutive user messages with `Question:` prefix for strict user/assistant alternation
+- `DEFAULT_SYSTEM_PROMPT` rewritten from meta-instructions to direct instructions (avoids preamble)
+
 ### Changes
 
 ```
-UPDATED: src/services/qa-service.ts — askStream(), classifyLlmError(), StreamChunk import
+UPDATED: src/services/qa-service.ts — askStream(), classifyLlmError(), DEFAULT_SYSTEM_PROMPT rewrite
+UPDATED: src/services/providers/nvidia-provider.ts — sanitizeMessages() for Gemma compat
 UPDATED: src/main/ipc-handlers.ts — ask-stream/cancel handlers, activeStreams Map
 UPDATED: src/preload/preload.ts — streaming API, STREAM_CHUNK/STREAM_DONE channels
 UPDATED: src/renderer/types.d.ts — streaming type declarations
 REWRITTEN: src/renderer/App.tsx — streaming state, event listeners, isStreaming
 UPDATED: src/renderer/components/QuestionPanel.tsx — Cancel button, isStreaming prop
 UPDATED: src/renderer/components/ConversationHistory.tsx — streamingEntry, error display, token info
+UPDATED: src/renderer/components/StatusBar.tsx — LLM status dot + model name
 UPDATED: test/llm-provider.test.ts — 16 tests (10 new)
-UPDATED: feature_list.json — 3 Phase G + 2 retroactive Phase F features → pass
+UPDATED: feature_list.json — 5 Phase G + 1 retroactive Phase F + llm-health-ui → pass (43/49 complete)
 UPDATED: session-handoff.md
+UPDATED: agent-progress.md
 ```
 
 ### Verification
@@ -2323,10 +2336,106 @@ UPDATED: session-handoff.md
 2. **AbortSignal propagation**: The OpenAI SDK's `create()` accepts AbortSignal; when aborted mid-stream, the `for await` loop throws AbortError caught by NvidiaProvider → yields `{ type: 'error', error: 'Request cancelled' }` → QaService catches and returns `[cancelled]` response.
 3. **Error classification safety**: Must never include raw error message in user output (OpenAI SDK errors may contain API key). Predefined strings only.
 4. **Renderer state complexity**: Streaming state (question, partialAnswer, requestId) crosses multiple components. `useRef` for requestId, `useState` for streamingEntry, event listener cleanup via `useEffect` return.
+5. **Gemma model quirks**: No system role support (500 error), strict user/assistant alternation required. System→user conversion must be followed by merging consecutive user messages with clear `Question:` separator.
+6. **Prompt engineering for non-system-role models**: Meta-instructions like "You are a helpful assistant" cause preamble responses. Direct instructions ("Answer the question...") produce better results when merged into user messages.
 
 ### Feature Status
 
-- **Features Complete:** 42/49
-- **Features Remaining:** 7 (Phase H: markdown-rendering, token-usage-tracking, llm-settings, answer-eval, llm-health-ui + Phase D: golden-eval-set, eval-runner, eval-in-ci)
+- **Features Complete:** 43/49
+- **Features Remaining:** 6 (Phase H: markdown-rendering, token-usage-tracking, llm-settings, answer-eval + Phase D: golden-eval-set, eval-runner, eval-in-ci)
 - **Build Health:** ✅ Green
 - **Next Feature:** markdown-rendering (Phase H) — `react-markdown` + `remark-gfm` in answer bubbles
+
+---
+
+## Session: 2026-07-01 — Markdown Rendering
+
+**Feature:** markdown-rendering
+**Status:** ✅ PASS
+**Phase:** H. UX & Quality
+**Duration:** ~5 minutes
+
+### Implementation
+
+1. Installed `react-markdown@10.1.0` + `remark-gfm@4.0.1`
+2. Updated `ConversationHistory.tsx`:
+   - Imported `ReactMarkdown` and `remarkGfm`
+   - Replaced plain-text `<div>{entry.response.answer}</div>` with `<ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>` for all answer rendering (history entries + streaming partial answers)
+   - Created `markdownComponents` object with styled custom renderers for:
+     - **code (inline)**: gold `#ffcc88` text, `#2a2a4e` rounded background
+     - **code (fenced)**: `#0d0d1a` dark background, `#2a2a4e` border, 6px radius, overflow-x auto
+     - **table/th/td**: bordered dark theme with `#1a1a3e` header backgrounds, overflow-x container
+     - **blockquote**: `#533483` purple left border, muted `#1a1a2a` background
+     - **a**: blue `#88bbff` links, `target="_blank"`
+3. Updated `index.html`:
+   - Added `@keyframes blink` animation (required by cursor)
+   - Added monospace font stack: `JetBrains Mono, Fira Code, Cascadia Code, Consolas`
+
+### Verification
+
+```
+✅ npm run check — 0 TypeScript errors
+✅ npm run build — 287 modules, 328 kB (gzip: 101 kB)
+✅ bash init.sh — All 5 checks passed
+```
+
+### Files Modified
+
+- `package.json` — react-markdown + remark-gfm deps
+- `src/renderer/components/ConversationHistory.tsx` — ReactMarkdown integration
+- `src/renderer/index.html` — blink animation, code font stack
+- `feature_list.json` — markdown-rendering → pass (44/49)
+- `session-handoff.md` — Updated
+- `agent-progress.md` — This entry
+
+## Entry 2026-07-01: LLM Settings Panel
+
+### Summary
+
+Implemented runtime LLM settings (model name, temperature, max tokens, streaming toggle, custom system prompt) that override .env defaults and take effect on the next question.
+
+### Details
+
+- Added `LlmSettings` interface to `shared/types.ts` with IPC channels `llm:settings:get` / `llm:settings:set`
+- Extended `SettingsService` with `getLlmSettings()`, `setLlmSettings()`, `getLlmDefaults()` + caching
+- Validation: temperature clamped to [0, 1.0] with WARN, maxTokens must be positive integer, streamEnabled must be boolean
+- Critical bug fix: `SettingsService.set()` now preserves LLM settings when writing (merge pattern prevents data loss)
+- Registered IPC handlers, preload bridge (`window.knowledgeBase.llmSettings`), renderer type declarations
+- QaService accepts `getLlmSettings` callback: `buildPrompt()` uses custom `systemPrompt`, `ask()`/`askStream()` pass `modelName`/`temperature`/`maxTokens` to provider
+- SettingsPanel UI: model name text input, temperature range slider (0-1, step 0.05), max tokens number input, stream toggle checkbox, system prompt textarea
+- 6 new SettingsService tests: defaults, update, temperature clamp, invalid rejection, persistence, partial update
+
+### Verification
+
+```
+npm test:     163 passed (23 files) — 6 new LLM settings tests
+npm run check: 0 errors
+npm run build: Succeeds (330 kB)
+init.sh:       All checks pass
+cleanup-scanner: CLEAN
+```
+
+### Files Modified
+
+- `src/shared/types.ts` — LlmSettings interface, IPC channels
+- `src/services/settings-service.ts` — getLlmSettings/setLlmSettings with validation
+- `src/main/ipc-handlers.ts` — llm:settings IPC handlers
+- `src/preload/preload.ts` — llmSettings namespace
+- `src/renderer/types.d.ts` — llmSettings type declarations
+- `src/services/qa-service.ts` — getLlmSettings callback, custom prompt/temperature/model/maxTokens
+- `src/main/main.ts` — wired getLlmSettings callback
+- `src/renderer/components/SettingsPanel.tsx` — LLM settings UI section
+- `test/settings.test.ts` — 6 new tests
+- `feature_list.json` — llm-settings → pass (46/49)
+- `docs/superpowers/specs/2026-07-01-llm-settings-design.md` — design doc
+- `docs/superpowers/plans/2026-07-01-llm-settings.md` — implementation plan
+- `docs/ARCHITECTURE.md` — updated IPC table and services layer
+- `session-handoff.md` — updated
+- `agent-progress.md` — this entry
+
+### Feature Status
+
+- **Features Complete:** 46/49
+- **Features Remaining:** 3 (answer-eval, golden-eval-set, eval-runner, eval-in-ci)
+- **Build Health:** ✅ Green
+- **Next Feature:** answer-eval
