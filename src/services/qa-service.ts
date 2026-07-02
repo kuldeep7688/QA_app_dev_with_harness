@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { QAResponse, QAHistory, Citation, FeedbackEntry, RetrievalSettings } from '../shared/types';
+import { QAResponse, QAHistory, Citation, FeedbackEntry, RetrievalSettings, LlmSettings, TokenUsage } from '../shared/types';
 import { logger } from './logger';
 import { hybridSearch, debugSearch, DebugSearchResult } from './retriever';
 import { isVectorExtensionLoaded } from './db';
@@ -16,6 +16,7 @@ export class QaService {
   private db: Database.Database;
   private embedFn: (text: string) => Promise<Float32Array>;
   private getSettings: () => RetrievalSettings;
+  private getLlmSettings: () => LlmSettings;
   private llmProvider: LlmProvider | null;
 
   constructor(
@@ -23,6 +24,7 @@ export class QaService {
     embedFn: (text: string) => Promise<Float32Array>,
     getSettings?: () => RetrievalSettings,
     llmProvider?: LlmProvider | null,
+    getLlmSettings?: () => LlmSettings,
   ) {
     this.db = db;
     this.embedFn = embedFn;
@@ -32,6 +34,13 @@ export class QaService {
       topN: 20,
       rrfK: 60,
       embeddingsEnabled: true,
+    }));
+    this.getLlmSettings = getLlmSettings ?? (() => ({
+      modelName: '',
+      temperature: 0.3,
+      maxTokens: 1024,
+      streamEnabled: true,
+      systemPrompt: '',
     }));
     this.llmProvider = llmProvider ?? null;
   }
@@ -81,9 +90,11 @@ export class QaService {
     if (this.llmProvider && citations.length > 0) {
       const messages = this.buildPrompt(question, citations);
       try {
+        const llmS = this.getLlmSettings();
         const chatResponse = await this.llmProvider.chat(messages, {
-          temperature: 0.3,
-          maxTokens: 1024,
+          model: llmS.modelName || undefined,
+          temperature: llmS.temperature,
+          maxTokens: llmS.maxTokens,
         });
         answer = chatResponse.content;
         modelUsed = chatResponse.model;
@@ -145,11 +156,14 @@ export class QaService {
   }
 
   private buildPrompt(question: string, citations: Citation[]): ChatMessage[] {
+    const llmS = this.getLlmSettings();
+    const systemPrompt = llmS.systemPrompt || DEFAULT_SYSTEM_PROMPT;
+
     const excerptBlocks = citations.map((c, i) =>
       `[Source ${i + 1}] ${c.documentTitle} (chunk ${c.chunkIndex}):\n${c.excerpt}`
     );
 
-    const systemContent = `${DEFAULT_SYSTEM_PROMPT}\n\nBelow are the relevant document excerpts to use for answering:\n\n${excerptBlocks.join('\n\n')}`;
+    const systemContent = `${systemPrompt}\n\nBelow are the relevant document excerpts to use for answering:\n\n${excerptBlocks.join('\n\n')}`;
 
     return [
       { role: 'system', content: systemContent },
@@ -175,15 +189,24 @@ export class QaService {
   getHistory(): QAHistory[] {
     const rows = this.db.prepare('SELECT * FROM qa_history ORDER BY ts DESC').all() as any[];
 
-    const history: QAHistory[] = rows.map(row => ({
-      question: row.question,
-      response: {
-        answer: row.answer,
-        citations: JSON.parse(row.citations_json),
-        confidence: row.confidence,
-        timestamp: row.ts,
-      },
-    }));
+    const history: QAHistory[] = rows.map(row => {
+      const tokensUsed: TokenUsage | undefined =
+        row.prompt_tokens != null && row.completion_tokens != null && row.total_tokens != null
+          ? { prompt: row.prompt_tokens, completion: row.completion_tokens, total: row.total_tokens }
+          : undefined;
+
+      return {
+        question: row.question,
+        response: {
+          answer: row.answer,
+          citations: JSON.parse(row.citations_json),
+          confidence: row.confidence,
+          timestamp: row.ts,
+          modelUsed: row.model_used ?? undefined,
+          tokensUsed,
+        },
+      };
+    });
 
     log.debug('Retrieved Q&A history', { entryCount: history.length });
     return history;
@@ -335,7 +358,13 @@ export class QaService {
     let tokensUsed: { prompt: number; completion: number; total: number } | undefined;
 
     try {
-      for await (const chunk of this.llmProvider.chatStream(messages, { temperature: 0.3, maxTokens: 1024, signal })) {
+      const streamOpts = this.getLlmSettings();
+      for await (const chunk of this.llmProvider.chatStream(messages, {
+        temperature: streamOpts.temperature,
+        maxTokens: streamOpts.maxTokens,
+        model: streamOpts.modelName || undefined,
+        signal,
+      })) {
         if (chunk.type === 'delta') {
           fullContent += chunk.content;
           onChunk(chunk);
@@ -405,9 +434,19 @@ export class QaService {
 
   private saveToHistory(question: string, response: QAResponse): void {
     this.db.prepare(`
-      INSERT INTO qa_history (ts, question, answer, confidence, citations_json)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(response.timestamp, question, response.answer, response.confidence, JSON.stringify(response.citations));
+      INSERT INTO qa_history (ts, question, answer, confidence, citations_json, model_used, prompt_tokens, completion_tokens, total_tokens)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      response.timestamp,
+      question,
+      response.answer,
+      response.confidence,
+      JSON.stringify(response.citations),
+      response.modelUsed ?? null,
+      response.tokensUsed?.prompt ?? null,
+      response.tokensUsed?.completion ?? null,
+      response.tokensUsed?.total ?? null,
+    );
   }
 }
 
