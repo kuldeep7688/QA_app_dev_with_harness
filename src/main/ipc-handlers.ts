@@ -228,6 +228,17 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
     return settingsService.set(partial);
   });
 
+  // LLM Settings
+  ipcMain.handle(IPC_CHANNELS.LLM_SETTINGS_GET, async () => {
+    log.debug('IPC received', { channel: IPC_CHANNELS.LLM_SETTINGS_GET });
+    return settingsService.getLlmSettings();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.LLM_SETTINGS_SET, async (_event, partial: Partial<import('../shared/types').LlmSettings>) => {
+    log.info('IPC received', { channel: IPC_CHANNELS.LLM_SETTINGS_SET, partial });
+    return settingsService.setLlmSettings(partial);
+  });
+
   // App reset
   ipcMain.handle(IPC_CHANNELS.RESET_DATA, async () => {
     log.info('IPC received', { channel: IPC_CHANNELS.RESET_DATA });
