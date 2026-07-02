@@ -25,6 +25,7 @@ const LLM_DEFAULTS: LlmSettings = {
 export class SettingsService {
   private persistence: PersistenceService;
   private cache: RetrievalSettings | null = null;
+  private llmCache: LlmSettings | null = null;
 
   constructor(persistence: PersistenceService) {
     this.persistence = persistence;
@@ -33,6 +34,10 @@ export class SettingsService {
 
   getDefaults(): RetrievalSettings {
     return { ...DEFAULTS };
+  }
+
+  getLlmDefaults(): LlmSettings {
+    return { ...LLM_DEFAULTS };
   }
 
   get(): RetrievalSettings {
@@ -93,7 +98,8 @@ export class SettingsService {
     }
 
     this.cache = { ...merged };
-    this.persistence.writeJson('settings.json', merged);
+    const existing = this.persistence.readJson<Record<string, unknown>>('settings.json') ?? {};
+    this.persistence.writeJson('settings.json', { ...existing, ...merged });
 
     log.info('Settings updated', {
       retrievalMode: merged.retrievalMode,
@@ -107,13 +113,20 @@ export class SettingsService {
   }
 
   getLlmSettings(): LlmSettings {
+    if (this.llmCache) {
+      return { ...this.llmCache };
+    }
+
     const saved = this.persistence.readJson<Partial<LlmSettings & RetrievalSettings>>('settings.json');
     if (saved) {
       const validated = this.applyLlmDefaults(saved);
+      this.llmCache = validated;
       log.debug('LLM settings loaded from disk', { modelName: validated.modelName || '(env default)' });
-      return validated;
+      return { ...validated };
     }
+
     log.info('No settings file found, using LLM defaults');
+    this.llmCache = { ...LLM_DEFAULTS };
     this.persistence.writeJson('settings.json', { ...DEFAULTS, ...LLM_DEFAULTS });
     return { ...LLM_DEFAULTS };
   }
@@ -147,6 +160,7 @@ export class SettingsService {
       merged.streamEnabled = current.streamEnabled;
     }
 
+    this.llmCache = { ...merged };
     const persisted = this.persistence.readJson<Record<string, unknown>>('settings.json') ?? {};
     this.persistence.writeJson('settings.json', { ...persisted, ...merged });
 
