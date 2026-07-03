@@ -97,6 +97,8 @@ export function ChatView() {
           content: data.content,
           tokensUsed: data.tokensUsed,
           model: data.model,
+          citations: data.citations,
+          webResults: data.webResults,
           createdAt: new Date().toISOString(),
         };
         setMessages(prev => [...prev, assistantMsg]);

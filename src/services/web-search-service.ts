@@ -34,12 +34,11 @@ export class WebSearchService {
     try {
       const response = await fetch(this.baseUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          api_key: this.apiKey,
           query,
+          search_depth: 'advanced',
           max_results: maxResults,
           include_answer: false,
         }),
