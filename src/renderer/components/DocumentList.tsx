@@ -9,10 +9,10 @@ interface Props {
 export function DocumentList({ documents, onSelect, selectedId }: Props) {
   if (documents.length === 0) {
     return (
-      <div style={{ padding: '20px 16px', color: '#666', fontSize: '13px', textAlign: 'center' }}>
+      <div style={{ padding: '20px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
         No documents imported yet.
         <br />
-        <span style={{ fontSize: '11px', color: '#555' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
           Import documents to get started.
         </span>
       </div>
@@ -28,13 +28,13 @@ export function DocumentList({ documents, onSelect, selectedId }: Props) {
           style={{
             padding: '10px 16px',
             cursor: 'pointer',
-            borderBottom: '1px solid #0f3460',
-            background: selectedId === doc.id ? '#0f3460' : 'transparent',
+            borderBottom: '1px solid var(--border-light)',
+            background: selectedId === doc.id ? 'var(--accent-secondary)' : 'transparent',
             transition: 'background 0.15s',
           }}
         >
-          <div style={{ fontSize: '13px', fontWeight: 500 }}>{doc.title}</div>
-          <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{doc.title}</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
             {doc.status === 'indexed' ? '✓ ' : ''}
             {(doc.size / 1024).toFixed(1)} KB
           </div>

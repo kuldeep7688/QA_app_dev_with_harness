@@ -51,9 +51,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '8px 10px',
-    background: '#1a1a2e',
-    color: '#e0e0e0',
-    border: '1px solid #0f3460',
+    background: 'var(--bg-input)',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--border-light)',
     borderRadius: '4px',
     fontSize: '13px',
     outline: 'none',
@@ -63,7 +63,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const labelStyle: React.CSSProperties = {
     display: 'block',
     marginBottom: '4px',
-    color: '#a0a0c0',
+    color: 'var(--text-secondary)',
     fontSize: '12px',
     fontWeight: 500,
   };
@@ -74,7 +74,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       style={{
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'var(--bg-overlay)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -82,18 +82,18 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       }}
     >
       <div style={{
-        background: '#1a1a2e',
-        border: '1px solid #0f3460',
+        background: 'var(--bg-app)',
+        border: '1px solid var(--border-light)',
         borderRadius: '8px',
         padding: '24px',
         maxWidth: '420px',
         width: '90%',
         boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
       }}>
-        <h3 style={{ margin: '0 0 4px', color: '#e0e0e0', fontSize: '16px' }}>
+        <h3 style={{ margin: '0 0 4px', color: 'var(--text-primary)', fontSize: '16px' }}>
           Settings
         </h3>
-        <p style={{ margin: '0 0 20px', color: '#666', fontSize: '12px' }}>
+        <p style={{ margin: '0 0 20px', color: 'var(--text-dim)', fontSize: '12px' }}>
           Changes take effect on the next question.
         </p>
 
@@ -152,19 +152,19 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             id="embeddingsEnabled"
             checked={settings.embeddingsEnabled}
             onChange={(e) => update('embeddingsEnabled', e.target.checked)}
-            style={{ accentColor: '#533483' }}
+            style={{ accentColor: 'var(--accent)' }}
           />
-          <label htmlFor="embeddingsEnabled" style={{ color: '#e0e0e0', fontSize: '13px' }}>
+          <label htmlFor="embeddingsEnabled" style={{ color: 'var(--text-primary)', fontSize: '13px' }}>
             Embeddings Enabled
           </label>
         </div>
 
-        <hr style={{ border: 'none', borderTop: '1px solid #0f3460', margin: '20px 0' }} />
+        <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', margin: '20px 0' }} />
 
-        <h3 style={{ margin: '0 0 4px', color: '#e0e0e0', fontSize: '16px' }}>
+        <h3 style={{ margin: '0 0 4px', color: 'var(--text-primary)', fontSize: '16px' }}>
           LLM Settings
         </h3>
-        <p style={{ margin: '0 0 20px', color: '#666', fontSize: '12px' }}>
+        <p style={{ margin: '0 0 20px', color: 'var(--text-dim)', fontSize: '12px' }}>
           Override .env defaults for the next question.
         </p>
 
@@ -188,7 +188,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             step={0.05}
             value={llmSettings.temperature}
             onChange={(e) => updateLlm('temperature', parseFloat(e.target.value))}
-            style={{ width: '100%', accentColor: '#533483' }}
+            style={{ width: '100%', accentColor: 'var(--accent)' }}
           />
         </div>
 
@@ -210,9 +210,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             id="streamEnabled"
             checked={llmSettings.streamEnabled}
             onChange={(e) => updateLlm('streamEnabled', e.target.checked)}
-            style={{ accentColor: '#533483' }}
+            style={{ accentColor: 'var(--accent)' }}
           />
-          <label htmlFor="streamEnabled" style={{ color: '#e0e0e0', fontSize: '13px' }}>
+          <label htmlFor="streamEnabled" style={{ color: 'var(--text-primary)', fontSize: '13px' }}>
             Stream Answers
           </label>
         </div>
@@ -232,9 +232,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             onClick={onClose}
             style={{
               padding: '6px 16px',
-              background: '#0f3460',
-              color: '#e0e0e0',
-              border: '1px solid #1a1a4e',
+              background: 'var(--accent-secondary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--accent-secondary-hover)',
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '13px',
@@ -247,7 +247,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             disabled={saving}
             style={{
               padding: '6px 16px',
-              background: saving ? '#3a2a5a' : '#533483',
+              background: saving ? 'var(--bg-hover)' : 'var(--accent)',
               color: '#fff',
               border: 'none',
               borderRadius: '4px',

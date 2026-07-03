@@ -1,6 +1,30 @@
 # Session Handoff
 
-## Current State (2026-07-01)
+## Current State (2026-07-03)
+
+### Recently Completed (2026-07-03)
+
+**Theme Toggle (Dark/Light)**
+- Added theme toggle button (☀️/🌙) in app header that switches between dark and light themes
+- Implemented CSS custom property system with 40+ variables covering all UI colors
+- Dark theme: preserves original app colors (#1a1a2e bg, #533483 accent, etc.)
+- Light theme: complementary light-mode palette (#f0f2f5 bg, #7044bb accent, etc.)
+- All CSS class-based styles in index.html `<style>` block converted to `var()` references
+- All inline style hardcoded colors across 11 components (App.tsx, ConversationHistory, SettingsPanel, StatusBar, ResetDialog, QuestionPanel, ImportPanel, DocumentDetail, DocumentList, ChatView, ChatInput, SessionList) replaced with `var(--name)` references
+- Theme toggled via React state + `document.documentElement.setAttribute('data-theme', theme)`
+- Updated docs/PRODUCT.md and docs/ARCHITECTURE.md with theme toggle documentation
+- TypeScript 0 errors, Vite 290 modules build, 204/204 tests pass, init.sh all checks pass
+- feature_list.json updated: theme-toggle → "pass" with evidence
+
+### Recently Completed (2026-07-03)
+
+**Integration Tests for Chat Pivot Features**
+- Created `test/chat-sessions-integration.test.ts` (~725 lines) with 38 tests covering: SessionService CRUD, ChatService sendMessage/sendStream, KB RAG citations, web search, file upload, auto-title, feedback, QaService streaming, transient context
+- Fixed streaming deadlock (`CHAT_STREAM_DONE` not sent), cancel broken (`requestId` ref), file upload broken (missing `app:read-file` IPC), citations/webResults not surfacing in streaming done chunk
+- Fixed pre-existing migrations test (version 5 → 6)
+- All 204 tests pass across 24 files, `npm run check` 0 errors, `bash init.sh` all checks pass
+
+### Recently Completed (2026-07-01)
 
 ### Recently Completed (2026-07-01)
 
@@ -342,54 +366,105 @@
 
 ## Next Features to Implement (prioritized)
 
-**Immediate: Phase H: UX & Quality (3 features remaining)**
-- token-usage-tracking - Token counts in UI and persistence
-- llm-settings - LLM settings panel (model, temperature, etc.)
-- answer-eval - Answer quality eval script
+**Chat Pivot (9 features — all pending in feature_list.json)**:
+- chat-view-nav — Two-tab navigation (Chat | Knowledge Base)
+- session-management — SessionService CRUD + SQLite + IPC
+- general-chat — ChatService orchestration with streaming
+- tool-selector-ui — ChatInput with KB/Web/File toggle buttons
+- kb-rag-tool — KB RAG tool wired to hybridSearch
+- web-search-tool — Tavily WebSearchService
+- file-upload-tool — File upload with text extraction
+- session-auto-title — Auto-generate session titles
+- chat-persistence — Sessions + messages in SQLite
 
-**Deferred: Phase D: Quality Measurement (3 features)**
-- golden-eval-set - Create test queries with expected chunks
-- eval-runner - Automated precision@5 and MRR measurement
-- eval-in-ci - CI integration for regression detection
+Implementation plan: `docs/superpowers/plans/2026-07-03-chat-pivot.md` (12 tasks)
 
-### Additional Changes (2026-07-01 — Gemma compat + LLM Health UI)
+### Feature Status
+44/44 old features complete (pass). 9 chat-pivot features pending.
 
-- `src/services/providers/nvidia-provider.ts` — UPDATED: `sanitizeMessages()` handles Gemma models (system→user conversion, merge with `Question:` prefix for strict user/assistant alternation)
-- `src/services/qa-service.ts` — UPDATED: `DEFAULT_SYSTEM_PROMPT` rewritten from meta-instructions to direct instructions (avoids Gemma preamble)
-- `src/renderer/components/StatusBar.tsx` — UPDATED: added LLM status dot + model name next to index dot, uses `AppStatus.llmStatus` and `llmModel`
-- `feature_list.json` — llm-health-ui set to "pass" (43/49 complete)
+### Recently Completed (2026-07-02 — Phase H: Token Tracking + LLM Settings)
 
-### Files Modified (2026-07-01 — Phase G: Streaming, Cancel, Error Handling)
+**Token Usage Tracking:**
+- Migration 005_token_usage.sql added prompt_tokens, completion_tokens, total_tokens columns to qa_history
+- QAResponse.tokensUsed captures {prompt, completion, total}
+- formatTokens() helper, cumulative session totals in ConversationHistory
+- 4 integration tests, 157/157 tests pass (23 files)
 
-- `src/services/qa-service.ts` — UPDATED: added `askStream()`, `classifyLlmError()`, import of `StreamChunk`, rewritten `DEFAULT_SYSTEM_PROMPT`
-- `src/services/providers/nvidia-provider.ts` — UPDATED: `sanitizeMessages()` for Gemma model compatibility
-- `src/main/ipc-handlers.ts` — UPDATED: added `qa:ask-stream` and `qa:cancel` handlers, `activeStreams` Map
-- `src/preload/preload.ts` — UPDATED: added streaming API, `STREAM_CHUNK`/`STREAM_DONE` channels
-- `src/renderer/types.d.ts` — UPDATED: streaming API type declarations
-- `src/renderer/App.tsx` — REWRITTEN: streaming state, event listeners, `isStreaming` flag
-- `src/renderer/components/QuestionPanel.tsx` — UPDATED: `onCancel` prop, Cancel button, `isStreaming` prop, disabled input
-- `src/renderer/components/ConversationHistory.tsx` — UPDATED: `streamingEntry` prop, error display, token usage, cancelled state
-- `src/renderer/components/StatusBar.tsx` — UPDATED: LLM status dot + model name
-- `test/llm-provider.test.ts` — UPDATED: 16 tests (10 new)
-- `feature_list.json` — 3 Phase G + 2 retroactive Phase F + llm-health-ui → "pass" (43/49 complete)
+**LLM Settings Panel:**
+- LlmSettings interface (modelName, temperature, maxTokens, streamEnabled, systemPrompt)
+- IPC channels llm:settings:get and llm:settings:set
+- SettingsService.getLlmSettings()/setLlmSettings() with validation
+- SettingsPanel UI: model name, temperature slider, max tokens, stream toggle, system prompt textarea
+- Fixed data-loss bug: SettingsService.set() merges with existing data
+- 6 new tests, 163/163 tests pass (23 files)
 
-### Files Modified (2026-07-01 — Markdown Rendering)
+### Recently Completed (2026-07-03 — chat-view-nav Feature)
 
-- `package.json` — UPDATED: added react-markdown + remark-gfm dependencies
-- `src/renderer/components/ConversationHistory.tsx` — UPDATED: ReactMarkdown rendering with custom components for code/tables/blockquotes/links
-- `src/renderer/index.html` — UPDATED: added @keyframes blink animation, monospace font stack for code blocks
-- `feature_list.json` — markdown-rendering → "pass" (44/49 complete)
-- `session-handoff.md` — Updated
-- `agent-progress.md` — Updated
+**Chat View Navigation:**
+- Added Session, ChatMessageData, ChatTools, UploadedFileData types to shared/types.ts
+- Added 10 new IPC channels: sessions:list/create/get/get-messages/update/delete, chat:send/send-stream/cancel, chat:stream-chunk/done
+- Created ChatView.tsx — chat container with SessionList, message display with ReactMarkdown, streaming support, cancel
+- Created SessionList.tsx — session sidebar with create/rename/delete, date formatting
+- Created ChatInput.tsx — input bar with KB/Web/File tool toggles, file upload chip display
+- Restructured App.tsx with two-tab navigation (Chat | Knowledge Base), conditional KB view
+- Added CSS styles for app-nav, chat-view, session-list, chat-input, message bubbles
+- Updated renderer types.d.ts with sessions and chat type declarations
+- TypeScript 0 errors, Vite 290 modules build, init.sh all checks pass
+
+### Recently Completed (2026-07-03 — Backend Services: session-management, general-chat, web-search-tool, tool-selector-ui, kb-rag-tool, file-upload-tool, session-auto-title, chat-persistence)
+
+**Session Management (session-management):**
+- Created `src/services/migrations/006_sessions.sql` — sessions + chat_messages tables with FK CASCADE
+- Created `src/services/session-service.ts` — full CRUD: createSession, listSessions, getSession, updateSession, deleteSession, addMessage, getMessages, setAutoTitle
+- Registered IPC handlers: sessions:list/create/get/get-messages/update/delete
+- Exposed in preload and renderer type declarations
+
+**General LLM Chat (general-chat):**
+- Created `src/services/chat-service.ts` — sendMessage() and sendStream() with LlmProvider
+- chat:send-stream IPC handler (fire-and-forget with sessionId + requestId)
+- chat:stream-chunk and chat:stream-done events via webContents.send
+- chat:cancel with AbortController
+- Saves user/assistant messages with tokens, citations, webResults, uploadedFiles
+- Fallback message when no LLM provider configured
+
+**Tavily Web Search (web-search-tool):**
+- Created `src/services/web-search-service.ts` — search(query) returns {title, url, content}[]
+- TAVILY_API_KEY in env-config.ts, loaded at startup
+- ChatService injects results into LLM prompt when webEnabled=true
+- API key only logged as boolean, never raw value
+
+**KB RAG Tool (kb-rag-tool):**
+- ChatService accepts retriever callback, calls hybridSearch when kbEnabled=true
+- Search results injected into system prompt with document citations
+- Citations include document title, excerpt, confidence, sources
+
+**File Upload Tool (file-upload-tool):**
+- ChatInput triggers file picker, reads via existing dialog:show-open IPC
+- File chips shown above input, removable
+- ChatService injects file content into system prompt for current turn only
+- Not persisted in KB or message content (metadata only)
+
+**Session Auto-Title (session-auto-title):**
+- setAutoTitle() truncates first message to 60 chars with '...'
+- Called from sendMessage/sendStream after first assistant response
+- Empty message → stays 'New Chat'
+
+**Chat Persistence (chat-persistence):**
+- Sessions + messages survive restarts via SQLite
+- Sessions sorted by updatedAt DESC
+- Messages loaded on session select via sessions:get-messages
+- FK CASCADE deletes messages on session delete
+- Reset clears sessions + chat_messages
+
+### Feature Status
+53/53 features complete. All features passing.
 
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
-4. Run `npm rebuild better-sqlite3` before vitest tests (if they fail with NODE_MODULE_VERSION mismatch)
-5. Read `feature_list.json` to see current feature status (44/49 complete)
-6. Next: Implement Phase H features (token-usage-tracking, llm-settings, answer-eval), then Phase D eval features.
-7. Testing notes:
-   - Use `npx vitest run test/<test-file>.ts` to run individual tests (vitest-compatible tests only)
-   - Some old test files use custom runners and are incompatible with vitest (pre-existing)
-   - `npm rebuild better-sqlite3` for Node.js when running vitest; `postinstall` rebuilds for Electron
-   - Streaming test (llm-provider.test.ts) covers askStream, cancel, error classification
+4. Read `feature_list.json` to see current feature status (all 53 passing)
+5. Next: No remaining features — project complete for feature scope
+6. Testing notes:
+   - Use `npm test` to run all tests (handles better-sqlite3 rebuild)
+   - Never run `npx vitest run` directly (NODE_MODULE_VERSION mismatch)
+   - To run a single test: `npm rebuild better-sqlite3` then `npx vitest run test/<file>.ts`

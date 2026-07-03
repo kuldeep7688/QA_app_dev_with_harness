@@ -39,6 +39,7 @@ declare global {
       };
       app: {
         resetData: () => Promise<void>;
+        readFile: (filePath: string) => Promise<{ name: string; content: string; type: string } | null>;
       };
       settings: {
         get: () => Promise<import('../shared/types').RetrievalSettings>;
@@ -50,6 +51,21 @@ declare global {
       };
       llm: {
         health: () => Promise<{ ok: boolean; model?: string; latencyMs?: number; error?: string }>;
+      };
+      sessions: {
+        list: () => Promise<import('../shared/types').Session[]>;
+        create: (title?: string) => Promise<import('../shared/types').Session>;
+        get: (id: string) => Promise<import('../shared/types').Session | null>;
+        getMessages: (sessionId: string) => Promise<import('../shared/types').ChatMessageData[]>;
+        update: (id: string, data: { title?: string }) => Promise<import('../shared/types').Session | null>;
+        delete: (id: string) => Promise<void>;
+      };
+      chat: {
+        send: (req: { sessionId: string; text: string; tools?: import('../shared/types').ChatTools }) => Promise<any>;
+        sendStream: (req: { sessionId: string; text: string; tools?: import('../shared/types').ChatTools; requestId: string }) => void;
+        cancel: (requestId: string) => void;
+        onStreamChunk: (callback: (data: any) => void) => () => void;
+        onStreamDone: (callback: (data: any) => void) => () => void;
       };
     };
   }

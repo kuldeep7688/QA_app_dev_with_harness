@@ -13,20 +13,19 @@ Before writing any code, complete these steps in order:
 
 ## Project Context
 
-- Document import with validation
-- Text indexing with progress tracking
-- Grounded Q&A with citations
-- Conversation history with chat-style display
+- Chat-first AI assistant with session-based conversations
+- Session management (CRUD, auto-title, persistence via SQLite)
+- Tool-selectable chat messages (KB RAG, Web Search, File Upload)
+- Document import with validation and text indexing
+- Grounded Q&A with citations (via KB view)
+- LLM answer generation via NVIDIA NIM (streaming, markdown, cancellable)
 - Structured logging for runtime observability
+- Web search integration via Tavily API
+- File upload with text extraction for chat context
 - Feedback collection on Q&A responses
 - Clean state reset for testing
 - Benchmark scripts for performance measurement
 - Cleanup scanner for detecting stale artifacts
-
-### Planned (in feature_list.json, not yet implemented)
-
-- **Hybrid retrieval** (Phases A–E): SQLite-backed BM25 + vector search via RRF fusion
-- **LLM answer generation** (Phases F–H): NVIDIA NIM provider, streaming answers, markdown rendering, cancellable requests
 
 ## Docs Hierarchy
 
@@ -53,7 +52,7 @@ When adding new features, update the relevant doc before writing code.
 
 - The ONLY bridge between main and renderer.
 - Uses `contextBridge.exposeInMainWorld` to expose typed APIs.
-- Exposes: documents, indexing, qa, feedback, app, llm, settings namespaces.
+- Exposes: documents, indexing, qa, feedback, app, llm, settings, sessions, chat namespaces.
 
 ### Renderer (`src/renderer/`)
 
@@ -101,7 +100,7 @@ A feature is "done" when:
 
 ## Session Handoff
 
-When resuming work, read `session-handoff.md` for context from the previous session. When finishing a session, update it with:
+When resuming work, read `session-handoff.md` and `docs/superpowers/plans/` for context from the previous session. When finishing a session, update it with:
 
 - What was accomplished
 - What remains

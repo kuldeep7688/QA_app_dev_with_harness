@@ -85,7 +85,7 @@ describe('Schema Migrations', () => {
     runMigrations(db);
 
     const versionRow2 = db.prepare("SELECT value FROM schema_meta WHERE key = ?").get('version') as { value: string };
-    expect(versionRow2.value).toBe('5');
+    expect(versionRow2.value).toBe('6');
 
     const tables2 = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as Array<{ name: string }>;
     expect(tables2.length).toBeGreaterThanOrEqual(5);

@@ -6,12 +6,16 @@ import { QaService } from '../services/qa-service';
 import { IndexingService } from '../services/indexing-service';
 import { PersistenceService } from '../services/persistence-service';
 import { SettingsService } from '../services/settings-service';
+import { SessionService } from '../services/session-service';
+import { ChatService } from '../services/chat-service';
+import { WebSearchService } from '../services/web-search-service';
 import { initDatabase } from '../services/db';
 import { runMigrations } from '../services/migrations/runner';
 import { LegacyImporter } from '../services/legacy-importer';
 import { logger } from '../services/logger';
-import { loadEnvConfig, isLLMEnabled } from '../services/env-config';
+import { loadEnvConfig, isLLMEnabled, getEnvConfig } from '../services/env-config';
 import { embed } from '../services/embedding-service';
+import { hybridSearch } from '../services/retriever';
 import { NvidiaProvider } from '../services/providers/nvidia-provider';
 import type { LlmProvider } from '../services/providers/types';
 
@@ -118,6 +122,22 @@ function initializeServices() {
   const documentService = new DocumentService(persistence, db);
   const indexingService = new IndexingService(persistence, db);
   const qaService = new QaService(db, embed, () => settingsService.get(), llmProvider, () => settingsService.getLlmSettings());
+  const sessionService = new SessionService(db);
+
+  const config = getEnvConfig();
+  const webSearchService = config.tavilyApiKey
+    ? new WebSearchService({ apiKey: config.tavilyApiKey })
+    : undefined;
+
+  const retrieverFn = (query: string) => hybridSearch(db, query, embed);
+  const chatService = new ChatService(
+    db,
+    llmProvider,
+    sessionService,
+    retrieverFn,
+    webSearchService,
+    settingsService.getLlmSettings()?.systemPrompt || undefined,
+  );
 
   registerIpcHandlers(ipcMain, {
     documentService,
@@ -125,6 +145,8 @@ function initializeServices() {
     qaService,
     persistenceService: persistence,
     settingsService,
+    sessionService,
+    chatService,
     llmProvider,
   });
 }

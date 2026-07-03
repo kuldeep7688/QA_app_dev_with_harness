@@ -1,14 +1,18 @@
 import { IpcMain, dialog, BrowserWindow } from 'electron';
+import { readFileSync } from 'node:fs';
 import { DocumentService } from '../services/document-service';
 import { IndexingService } from '../services/indexing-service';
 import { QaService } from '../services/qa-service';
 import { PersistenceService } from '../services/persistence-service';
 import { SettingsService } from '../services/settings-service';
+import { SessionService } from '../services/session-service';
+import { ChatService } from '../services/chat-service';
 import { IPC_CHANNELS } from '../shared/types';
 import { logger } from '../services/logger';
 import { clearAllData } from '../services/db';
 import type { LlmProvider } from '../services/providers/types';
 import type { StreamChunk } from '../services/providers/types';
+import type { ChatTools } from '../shared/types';
 
 const log = logger.forService('IPC');
 
@@ -18,13 +22,15 @@ export interface Services {
   qaService: QaService;
   persistenceService: PersistenceService;
   settingsService: SettingsService;
+  sessionService: SessionService;
+  chatService: ChatService;
   llmProvider?: LlmProvider | null;
 }
 
 const activeStreams = new Map<string, AbortController>();
 
 export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
-  const { documentService, indexingService, qaService, persistenceService, settingsService } = services;
+  const { documentService, indexingService, qaService, persistenceService, settingsService, sessionService, chatService } = services;
 
   // Document operations
   ipcMain.handle(IPC_CHANNELS.LIST_DOCUMENTS, async () => {
@@ -250,6 +256,118 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
     // Clear filesystem data (documents and index files, but not database files)
     persistenceService.resetAll();
     log.info('Filesystem data cleared');
+  });
+
+  // Read file content from path (for file upload tool)
+  ipcMain.handle(IPC_CHANNELS.READ_FILE, async (_event, filePath: string) => {
+    log.info('IPC: app:read-file', { filePath });
+    try {
+      const content = readFileSync(filePath, 'utf-8');
+      const name = filePath.split(/[\\/]/).pop() || 'file';
+      const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() : 'txt';
+      return { name, content, type: ext || 'txt' };
+    } catch (error) {
+      log.error('Failed to read file', { filePath, error: String(error) });
+      return null;
+    }
+  });
+
+  // --- Session IPC Handlers ---
+  ipcMain.handle(IPC_CHANNELS.SESSIONS_LIST, async () => {
+    log.info('IPC: sessions:list');
+    return sessionService.listSessions();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SESSIONS_CREATE, async (_event, title?: string) => {
+    log.info('IPC: sessions:create');
+    return sessionService.createSession(title);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SESSIONS_GET, async (_event, id: string) => {
+    log.debug('IPC: sessions:get', { sessionId: id });
+    return sessionService.getSession(id);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SESSIONS_GET_MESSAGES, async (_event, sessionId: string) => {
+    log.debug('IPC: sessions:get-messages', { sessionId });
+    return sessionService.getMessages(sessionId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SESSIONS_UPDATE, async (_event, id: string, data: { title?: string }) => {
+    log.info('IPC: sessions:update', { sessionId: id });
+    return sessionService.updateSession(id, data);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SESSIONS_DELETE, async (_event, id: string) => {
+    log.info('IPC: sessions:delete', { sessionId: id });
+    sessionService.deleteSession(id);
+  });
+
+  // --- Chat IPC Handlers ---
+  const activeChatStreams = new Map<string, AbortController>();
+
+  ipcMain.handle(IPC_CHANNELS.CHAT_SEND, async (_event, request: { sessionId: string; text: string; tools?: ChatTools }) => {
+    log.info('IPC: chat:send', { sessionId: request.sessionId, textLength: request.text.length });
+    return chatService.sendMessage(request.sessionId, request.text, request.tools);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CHAT_SEND_STREAM, async (event, request: { sessionId: string; text: string; tools?: ChatTools; requestId: string }) => {
+    log.info('IPC: chat:send-stream', { sessionId: request.sessionId, requestId: request.requestId, textLength: request.text.length });
+    const controller = new AbortController();
+    activeChatStreams.set(request.requestId, controller);
+
+    let fullContent = '';
+    let finalMeta: { content?: string; usage?: { prompt: number; completion: number; total: number }; model?: string; citations?: any[]; webResults?: any[] } = {};
+
+    try {
+      await chatService.sendStream(
+        request.sessionId,
+        request.text,
+        request.tools,
+        (chunk: any) => {
+          if (event.sender.isDestroyed()) return;
+          if (chunk.type === 'delta') {
+            fullContent += chunk.content || '';
+            event.sender.send(IPC_CHANNELS.CHAT_STREAM_CHUNK, { requestId: request.requestId, content: chunk.content || '' });
+          } else if (chunk.type === 'done') {
+            finalMeta = { content: chunk.content, usage: chunk.usage, model: chunk.model, citations: chunk.citations, webResults: chunk.webResults };
+          }
+        },
+        controller.signal,
+      );
+
+      if (!event.sender.isDestroyed()) {
+        event.sender.send(IPC_CHANNELS.CHAT_STREAM_DONE, {
+          requestId: request.requestId,
+          content: finalMeta.content || fullContent,
+          tokensUsed: finalMeta.usage,
+          model: finalMeta.model,
+          citations: finalMeta.citations,
+          webResults: finalMeta.webResults,
+        });
+      }
+    } catch (error) {
+      log.error('Chat stream failed', { requestId: request.requestId, error: String(error) });
+      if (!event.sender.isDestroyed()) {
+        const isCancelled = (error as Error)?.name === 'AbortError';
+        event.sender.send(IPC_CHANNELS.CHAT_STREAM_DONE, {
+          requestId: request.requestId,
+          content: isCancelled ? (fullContent ? fullContent : undefined) : undefined,
+          error: isCancelled ? undefined : (error instanceof Error ? error.message : 'Stream error'),
+        });
+      }
+    } finally {
+      activeChatStreams.delete(request.requestId);
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CHAT_CANCEL, async (event, requestId: string) => {
+    log.debug('IPC: chat:cancel', { requestId });
+    const controller = activeChatStreams.get(requestId);
+    if (controller) {
+      controller.abort();
+      activeChatStreams.delete(requestId);
+    }
   });
 
   const registeredChannels = Object.values(IPC_CHANNELS);

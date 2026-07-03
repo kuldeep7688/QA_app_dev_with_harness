@@ -7,9 +7,15 @@ import { StatusBar } from './components/StatusBar';
 import { ConversationHistory } from './components/ConversationHistory';
 import { ResetDialog } from './components/ResetDialog';
 import { SettingsPanel } from './components/SettingsPanel';
+import { ChatView } from './components/ChatView';
 import { Document, AppStatus, QAHistory, TokenUsage } from './shared-types';
 
+type View = 'chat' | 'knowledge-base';
+type Theme = 'dark' | 'light';
+
 export function App() {
+  const [activeView, setActiveView] = useState<View>('chat');
+  const [theme, setTheme] = useState<Theme>('dark');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [appStatus, setAppStatus] = useState<AppStatus>({
@@ -78,6 +84,15 @@ export function App() {
     } else {
       console.error('[Renderer] ❌ window.knowledgeBase is NOT defined! Preload script did not load.');
     }
+  }, []);
+
+  // Apply theme to document element
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   }, []);
 
   // Load documents and history on mount
@@ -222,37 +237,61 @@ export function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <header style={{
-        padding: '12px 20px',
-        background: '#16213e',
-        borderBottom: '1px solid #0f3460',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <h1 style={{ fontSize: '18px', fontWeight: 600 }}>Knowledge Base</h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
+      <header className="app-header">
+        <div className="app-nav">
           <button
-            onClick={handleShowHistory}
+            className={`nav-tab ${activeView === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveView('chat')}
+          >
+            Chat
+          </button>
+          <button
+            className={`nav-tab ${activeView === 'knowledge-base' ? 'active' : ''}`}
+            onClick={() => setActiveView('knowledge-base')}
+          >
+            Knowledge Base
+          </button>
+        </div>
+        <div className="app-header-right">
+          <button
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             style={{
-              padding: '6px 14px',
-              background: showHistory ? '#533483' : '#0f3460',
-              color: '#e0e0e0',
-              border: `1px solid ${showHistory ? '#7044bb' : '#1a1a4e'}`,
+              padding: '6px 10px',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '13px',
+              fontSize: '16px',
+              lineHeight: '1',
             }}
           >
-            History {history.length > 0 ? `(${history.length})` : ''}
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
+          {activeView === 'knowledge-base' && (
+            <button
+              onClick={handleShowHistory}
+              style={{
+                padding: '6px 14px',
+                background: showHistory ? 'var(--accent)' : 'var(--accent-secondary)',
+                color: 'var(--text-primary)',
+                border: `1px solid ${showHistory ? 'var(--accent-hover)' : 'var(--accent-secondary-hover)'}`,
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '13px',
+              }}
+            >
+              History {history.length > 0 ? `(${history.length})` : ''}
+            </button>
+          )}
           <button
             onClick={() => setShowSettings(true)}
             style={{
               padding: '6px 14px',
-              background: showSettings ? '#533483' : '#0f3460',
-              color: '#e0e0e0',
-              border: '1px solid #1a1a4e',
+              background: showSettings ? 'var(--accent)' : 'var(--accent-secondary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--accent-secondary-hover)',
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '13px',
@@ -264,9 +303,9 @@ export function App() {
             onClick={() => setShowResetDialog(true)}
             style={{
               padding: '6px 14px',
-              background: '#8b0000',
+              background: 'var(--danger)',
               color: '#fff',
-              border: '1px solid #a00000',
+              border: '1px solid var(--danger-hover)',
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '13px',
@@ -278,9 +317,9 @@ export function App() {
             onClick={refreshDocuments}
             style={{
               padding: '6px 14px',
-              background: '#0f3460',
-              color: '#e0e0e0',
-              border: '1px solid #1a1a4e',
+              background: 'var(--accent-secondary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--accent-secondary-hover)',
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '13px',
@@ -302,79 +341,83 @@ export function App() {
         />
       )}
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Left panel: Document list */}
-        <div style={{
-          width: '280px',
-          borderRight: '1px solid #0f3460',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#16213e',
-        }}>
+      {activeView === 'chat' ? (
+        <ChatView />
+      ) : (
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          {/* Left panel: Document list */}
           <div style={{
-            padding: '10px 16px',
-            borderBottom: '1px solid #0f3460',
+            width: '280px',
+            borderRight: '1px solid var(--border-light)',
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            flexDirection: 'column',
+            background: 'var(--kb-sidebar-bg)',
           }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: '#a0a0c0' }}>
-              Documents ({documents.length})
-            </span>
-            <button
-              onClick={() => {
-                setShowImport(!showImport);
-                if (!showImport) setShowHistory(false);
-              }}
-              style={{
-                padding: '4px 10px',
-                background: '#533483',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                fontSize: '12px',
-              }}
-            >
-              {showImport ? 'Cancel' : '+ Import'}
-            </button>
-          </div>
-          <DocumentList
-            documents={documents}
-            onSelect={handleSelectDocument}
-            selectedId={selectedDoc?.id ?? null}
-          />
-        </div>
-
-        {/* Right panel: Import / Conversation History / Document detail */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-            {showImport ? (
-              <ImportPanel onImport={handleImport} />
-            ) : showHistory ? (
-              <ConversationHistory
-                history={history}
-                onClearHistory={handleClearHistory}
-                onSubmitFeedback={handleSubmitFeedback}
-                streamingEntry={streamingEntry}
-                sessionTokens={sessionTokens}
-              />
-            ) : selectedDoc ? (
-              <DocumentDetail
-                document={selectedDoc}
-                onDelete={handleDeleteDocument}
-                onIndexed={refreshDocuments}
-              />
-            ) : (
-              <div style={{ color: '#666', textAlign: 'center', paddingTop: '40px' }}>
-                Select a document or ask a question to get started
-              </div>
-            )}
+            <div style={{
+              padding: '10px 16px',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                Documents ({documents.length})
+              </span>
+              <button
+                onClick={() => {
+                  setShowImport(!showImport);
+                  if (!showImport) setShowHistory(false);
+                }}
+                style={{
+                  padding: '4px 10px',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                }}
+              >
+                {showImport ? 'Cancel' : '+ Import'}
+              </button>
+            </div>
+            <DocumentList
+              documents={documents}
+              onSelect={handleSelectDocument}
+              selectedId={selectedDoc?.id ?? null}
+            />
           </div>
 
-          <QuestionPanel onAsk={handleAskQuestion} onCancel={handleCancelQuestion} isStreaming={isStreaming} />
+          {/* Right panel: Import / Conversation History / Document detail */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+              {showImport ? (
+                <ImportPanel onImport={handleImport} />
+              ) : showHistory ? (
+                <ConversationHistory
+                  history={history}
+                  onClearHistory={handleClearHistory}
+                  onSubmitFeedback={handleSubmitFeedback}
+                  streamingEntry={streamingEntry}
+                  sessionTokens={sessionTokens}
+                />
+              ) : selectedDoc ? (
+                <DocumentDetail
+                  document={selectedDoc}
+                  onDelete={handleDeleteDocument}
+                  onIndexed={refreshDocuments}
+                />
+              ) : (
+                <div style={{ color: 'var(--text-dim)', textAlign: 'center', paddingTop: '40px' }}>
+                  Select a document or ask a question to get started
+                </div>
+              )}
+            </div>
+
+            <QuestionPanel onAsk={handleAskQuestion} onCancel={handleCancelQuestion} isStreaming={isStreaming} />
+          </div>
         </div>
-      </div>
+      )}
 
       <StatusBar status={appStatus} />
     </div>

@@ -32,11 +32,11 @@ export function ImportPanel({ onImport }: Props) {
   return (
     <div style={{
       padding: '20px',
-      background: '#16213e',
+      background: 'var(--kb-sidebar-bg)',
       borderRadius: '6px',
-      border: '1px dashed #0f3460',
+      border: '1px dashed var(--border-light)',
       textAlign: 'center',
-      color: '#888',
+      color: 'var(--text-muted)',
     }}>
       <div style={{ fontSize: '14px', marginBottom: '8px' }}>Import Documents</div>
       <div style={{ fontSize: '12px', marginBottom: '16px' }}>
@@ -48,7 +48,7 @@ export function ImportPanel({ onImport }: Props) {
         onClick={handleSelectFile}
         style={{
           padding: '8px 16px',
-          background: '#533483',
+          background: 'var(--accent)',
           color: '#fff',
           border: 'none',
           borderRadius: '4px',

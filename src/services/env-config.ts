@@ -9,6 +9,7 @@ export interface EnvConfig {
   modelName: string;
   baseUrl: string;
   llmEnabled: boolean;
+  tavilyApiKey: string;
 }
 
 let cached: EnvConfig | null = null;
@@ -29,6 +30,7 @@ export function loadEnvConfig(): EnvConfig {
   const modelName = process.env.NVIDIA_MODEL_NAME || 'google/gemma-2-2b-it';
   const baseUrl = process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
   const llmEnabled = nvidiaApiKey.length > 0;
+  const tavilyApiKey = process.env.TAVILY_API_KEY || '';
 
   if (!llmEnabled) {
     log.warn('NVIDIA_API_KEY not set — LLM features disabled');
@@ -41,7 +43,13 @@ export function loadEnvConfig(): EnvConfig {
     });
   }
 
-  cached = { nvidiaApiKey, modelName, baseUrl, llmEnabled };
+  if (tavilyApiKey) {
+    log.info('Tavily API key configured', { keyPresent: true, keyLength: tavilyApiKey.length });
+  } else {
+    log.warn('TAVILY_API_KEY not set — web search disabled');
+  }
+
+  cached = { nvidiaApiKey, modelName, baseUrl, llmEnabled, tavilyApiKey };
   return cached;
 }
 

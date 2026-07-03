@@ -32,12 +32,12 @@ function formatTokens(count: number): string {
 /** Color-code confidence: green ≥ 0.7, yellow ≥ 0.4, red otherwise. */
 function confidenceStyle(confidence: number): { background: string; color: string; label: string } {
   if (confidence >= 0.7) {
-    return { background: '#1a5928', color: '#66ff99', label: 'high' };
+    return { background: 'var(--success-bg)', color: 'var(--success-text)', label: 'high' };
   }
   if (confidence >= 0.4) {
-    return { background: '#664d1a', color: '#ffcc66', label: 'medium' };
+    return { background: 'var(--warning-bg)', color: 'var(--warning-text)', label: 'medium' };
   }
-  return { background: '#4a2020', color: '#ff9999', label: 'low' };
+  return { background: 'var(--danger-bg)', color: 'var(--danger-text)', label: 'low' };
 }
 
 interface CitationsBlockProps {
@@ -53,15 +53,15 @@ interface BadgeInfo {
 function sourceBadge(c: Citation): BadgeInfo {
   const isHybrid = c.sources.includes('bm25') && c.sources.includes('vector');
   if (isHybrid) {
-    return { label: 'Hybrid', bg: '#2a1a4e', color: '#bb88ff' };
+    return { label: 'Hybrid', bg: 'var(--accent-text-bg)', color: 'var(--accent-hover)' };
   }
   if (c.sources.includes('bm25') && c.bm25Rank !== undefined) {
-    return { label: `BM25 #${c.bm25Rank}`, bg: '#1a2a4e', color: '#88bbff' };
+    return { label: `BM25 #${c.bm25Rank}`, bg: 'var(--info-bg)', color: 'var(--info-text)' };
   }
   if (c.sources.includes('vector') && c.vectorRank !== undefined) {
-    return { label: `Vector #${c.vectorRank}`, bg: '#1a3a2a', color: '#88ff99' };
+    return { label: `Vector #${c.vectorRank}`, bg: 'var(--success-bg)', color: 'var(--success-text)' };
   }
-  return { label: c.sources[0] || '—', bg: '#333', color: '#aaa' };
+  return { label: c.sources[0] || '—', bg: 'var(--badge-bg)', color: 'var(--badge-text)' };
 }
 
 function CitationsBlock({ citations }: CitationsBlockProps) {
@@ -76,7 +76,7 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
         style={{
           background: 'none',
           border: 'none',
-          color: '#8888bb',
+          color: 'var(--badge-text)',
           cursor: 'pointer',
           fontSize: '12px',
           padding: '0',
@@ -100,7 +100,7 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
                 style={{
                   marginTop: '6px',
                   paddingLeft: '10px',
-                  borderLeft: '2px solid #533483',
+                  borderLeft: '2px solid var(--quote-border)',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '8px',
@@ -136,9 +136,9 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
                 >
                   {badge.label}
                 </div>
-                <div style={{ fontSize: '12px', color: '#a0a0c0', lineHeight: 1.5 }}>
-                  <strong style={{ color: '#c0c0e0' }}>{c.documentTitle}</strong>{' '}
-                  <span style={{ color: '#6666aa' }}>(chunk {c.chunkIndex})</span>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-bright)' }}>{c.documentTitle}</strong>{' '}
+                  <span style={{ color: 'var(--text-dim)' }}>(chunk {c.chunkIndex})</span>
                   {': '}
                   {c.excerpt.substring(0, 120)}
                   {c.excerpt.length > 120 ? '…' : ''}
@@ -159,11 +159,11 @@ const markdownComponents = {
       return (
         <code
           style={{
-            background: '#2a2a4e',
+            background: 'var(--bg-hover)',
             padding: '1px 5px',
             borderRadius: '3px',
             fontSize: '13px',
-            color: '#ffcc88',
+            color: 'var(--code-text)',
           }}
           {...props}
         >
@@ -174,14 +174,14 @@ const markdownComponents = {
     return (
       <pre
         style={{
-          background: '#0d0d1a',
+          background: 'var(--bg-code)',
           padding: '12px',
           borderRadius: '6px',
           overflowX: 'auto',
-          border: '1px solid #2a2a4e',
+          border: '1px solid var(--border)',
           fontSize: '13px',
           lineHeight: 1.5,
-          color: '#c0c0e0',
+          color: 'var(--text-bright)',
         }}
       >
         <code className={className} {...props}>
@@ -198,7 +198,7 @@ const markdownComponents = {
             borderCollapse: 'collapse',
             width: '100%',
             fontSize: '13px',
-            color: '#d0d0f0',
+            color: 'var(--text-primary)',
           }}
         >
           {children}
@@ -210,9 +210,9 @@ const markdownComponents = {
     return (
       <th
         style={{
-          border: '1px solid #2a2a5e',
+          border: '1px solid var(--border-card)',
           padding: '6px 10px',
-          background: '#1a1a3e',
+          background: 'var(--bg-card)',
           textAlign: 'left',
           fontWeight: 600,
         }}
@@ -223,7 +223,7 @@ const markdownComponents = {
   },
   td({ children }: { children?: React.ReactNode }) {
     return (
-      <td style={{ border: '1px solid #2a2a5e', padding: '6px 10px' }}>
+      <td style={{ border: '1px solid var(--border-card)', padding: '6px 10px' }}>
         {children}
       </td>
     );
@@ -232,11 +232,11 @@ const markdownComponents = {
     return (
       <blockquote
         style={{
-          borderLeft: '3px solid #533483',
+          borderLeft: '3px solid var(--quote-border)',
           margin: '8px 0',
           padding: '4px 12px',
-          color: '#a0a0c0',
-          background: '#1a1a2a',
+          color: 'var(--text-secondary)',
+          background: 'var(--quote-bg)',
         }}
       >
         {children}
@@ -245,7 +245,7 @@ const markdownComponents = {
   },
   a({ href, children }: { href?: string; children?: React.ReactNode }) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#88bbff' }}>
+      <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--link)' }}>
         {children}
       </a>
     );
@@ -274,12 +274,12 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
           justifyContent: 'space-between',
           alignItems: 'center',
           paddingBottom: '12px',
-          borderBottom: '1px solid #0f3460',
+          borderBottom: '1px solid var(--border-light)',
           marginBottom: '16px',
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: '14px', fontWeight: 600, color: '#c0c0e0' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-bright)' }}>
           Conversation History
           {history.length > 0 && (
             <span
@@ -287,7 +287,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                 marginLeft: '8px',
                 fontSize: '12px',
                 fontWeight: 400,
-                color: '#6666aa',
+                color: 'var(--text-dim)',
               }}
             >
               ({history.length} exchange{history.length !== 1 ? 's' : ''})
@@ -299,7 +299,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                 marginLeft: '8px',
                 fontSize: '11px',
                 fontWeight: 400,
-                color: '#555588',
+                color: 'var(--text-dim)',
               }}
             >
               · {formatTokens(sessionTokens.total)} tokens total
@@ -312,9 +312,9 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
             onClick={handleClearClick}
             style={{
               padding: '4px 10px',
-              background: confirmClear ? '#7a2020' : '#2a2a4e',
-              color: confirmClear ? '#ff8888' : '#8888bb',
-              border: `1px solid ${confirmClear ? '#aa3333' : '#3a3a6e'}`,
+              background: confirmClear ? 'var(--danger-bg)' : 'var(--bg-hover)',
+              color: confirmClear ? 'var(--danger-text)' : 'var(--badge-text)',
+              border: `1px solid ${confirmClear ? 'var(--danger)' : 'var(--border)'}`,
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '12px',
@@ -333,7 +333,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#4a4a7a',
+            color: 'var(--text-dim)',
             fontSize: '14px',
           }}
         >
@@ -354,11 +354,11 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                     style={{
                       maxWidth: '75%',
                       padding: '10px 14px',
-                      background: '#533483',
+                      background: 'var(--chat-user-bg)',
                       borderRadius: '14px 14px 4px 14px',
                       fontSize: '14px',
                       lineHeight: 1.5,
-                      color: '#e8e0ff',
+                      color: 'var(--chat-user-text)',
                     }}
                   >
                     <div>{entry.question}</div>
@@ -371,12 +371,12 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                     style={{
                       maxWidth: '80%',
                       padding: '10px 14px',
-                      background: '#1a1a3e',
+                      background: 'var(--conversation-card-bg)',
                       borderRadius: '14px 14px 14px 4px',
-                      border: '1px solid #2a2a5e',
+                      border: '1px solid var(--chat-assistant-border)',
                       fontSize: '14px',
                       lineHeight: 1.6,
-                      color: '#d0d0f0',
+                      color: 'var(--chat-assistant-text)',
                     }}
                   >
                     <div><ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{entry.response.answer}</ReactMarkdown></div>
@@ -403,7 +403,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                     <CitationsBlock citations={entry.response.citations} />
 
                     {/* Token usage and timestamp */}
-                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#6666aa' }}>
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-dim)' }}>
                       {entry.response.tokensUsed
                         ? `${formatTokens(entry.response.tokensUsed.total)} tokens · ${formatTime(entry.response.timestamp)}`
                         : formatTime(entry.response.timestamp)
@@ -421,9 +421,9 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                         }}
                         disabled={feedbackGiven.has(entry.response.timestamp)}
                         style={{
-                          background: feedbackGiven.has(entry.response.timestamp) ? '#1a3a2a' : '#2a2a4e',
-                          color: feedbackGiven.has(entry.response.timestamp) ? '#66ff99' : '#8888bb',
-                          border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? '#33aa55' : '#3a3a6e'}`,
+                          background: feedbackGiven.has(entry.response.timestamp) ? 'var(--success-bg)' : 'var(--bg-hover)',
+                          color: feedbackGiven.has(entry.response.timestamp) ? 'var(--success-text)' : 'var(--badge-text)',
+                          border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? 'var(--success-text)' : 'var(--border)'}`,
                           borderRadius: '4px',
                           cursor: feedbackGiven.has(entry.response.timestamp) ? 'default' : 'pointer',
                           padding: '3px 10px',
@@ -441,9 +441,9 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                         }}
                         disabled={feedbackGiven.has(entry.response.timestamp)}
                         style={{
-                          background: feedbackGiven.has(entry.response.timestamp) ? '#3a1a1a' : '#2a2a4e',
-                          color: feedbackGiven.has(entry.response.timestamp) ? '#ff6666' : '#8888bb',
-                          border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? '#aa3333' : '#3a3a6e'}`,
+                          background: feedbackGiven.has(entry.response.timestamp) ? 'var(--danger-bg)' : 'var(--bg-hover)',
+                          color: feedbackGiven.has(entry.response.timestamp) ? 'var(--danger-text)' : 'var(--badge-text)',
+                          border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? 'var(--danger)' : 'var(--border)'}`,
                           borderRadius: '4px',
                           cursor: feedbackGiven.has(entry.response.timestamp) ? 'default' : 'pointer',
                           padding: '3px 10px',
@@ -469,11 +469,11 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                   style={{
                     maxWidth: '75%',
                     padding: '10px 14px',
-                    background: '#533483',
+                    background: 'var(--chat-user-bg)',
                     borderRadius: '14px 14px 4px 14px',
                     fontSize: '14px',
                     lineHeight: 1.5,
-                    color: '#e8e0ff',
+                    color: 'var(--chat-user-text)',
                   }}
                 >
                   <div>{streamingEntry.question}</div>
@@ -486,12 +486,12 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                   style={{
                     maxWidth: '80%',
                     padding: '10px 14px',
-                    background: streamingEntry.hasError ? '#3a1a1a' : '#1a1a3e',
+                    background: streamingEntry.hasError ? 'var(--danger-bg)' : 'var(--conversation-card-bg)',
                     borderRadius: '14px 14px 14px 4px',
-                    border: streamingEntry.hasError ? '1px solid #6a2020' : '1px solid #2a2a5e',
+                    border: streamingEntry.hasError ? '1px solid var(--danger)' : '1px solid var(--chat-assistant-border)',
                     fontSize: '14px',
                     lineHeight: 1.6,
-                    color: streamingEntry.hasError ? '#ff9999' : '#d0d0f0',
+                    color: streamingEntry.hasError ? 'var(--danger-text)' : 'var(--chat-assistant-text)',
                   }}
                 >
                   <div>
@@ -500,7 +500,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                       <span style={{ animation: 'blink 1s step-end infinite', marginLeft: '2px' }}>▊</span>
                     )}
                     {streamingEntry.cancelled && !streamingEntry.partialAnswer && (
-                      <span style={{ color: '#ff8888' }}>[cancelled]</span>
+                      <span style={{ color: 'var(--danger-text)' }}>[cancelled]</span>
                     )}
                   </div>
 
@@ -513,8 +513,8 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                         alignItems: 'center',
                         gap: '5px',
                         padding: '2px 7px',
-                        background: streamingEntry.hasError ? '#4a2020' : streamingEntry.cancelled ? '#4a4040' : '#1a2a4e',
-                        color: streamingEntry.hasError ? '#ff9999' : streamingEntry.cancelled ? '#aaaaaa' : '#88bbff',
+                        background: streamingEntry.hasError ? 'var(--danger-bg)' : streamingEntry.cancelled ? 'var(--bg-card)' : 'var(--info-bg)',
+                        color: streamingEntry.hasError ? 'var(--danger-text)' : streamingEntry.cancelled ? 'var(--text-muted)' : 'var(--info-text)',
                         borderRadius: '10px',
                         fontSize: '11px',
                         fontWeight: 600,

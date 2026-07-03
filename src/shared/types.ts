@@ -112,6 +112,22 @@ export const IPC_CHANNELS = {
 
   // App
   RESET_DATA: 'app:reset',
+  READ_FILE: 'app:read-file',
+
+  // Sessions
+  SESSIONS_LIST: 'sessions:list',
+  SESSIONS_CREATE: 'sessions:create',
+  SESSIONS_GET: 'sessions:get',
+  SESSIONS_GET_MESSAGES: 'sessions:get-messages',
+  SESSIONS_UPDATE: 'sessions:update',
+  SESSIONS_DELETE: 'sessions:delete',
+
+  // Chat
+  CHAT_SEND: 'chat:send',
+  CHAT_SEND_STREAM: 'chat:send-stream',
+  CHAT_CANCEL: 'chat:cancel',
+  CHAT_STREAM_CHUNK: 'chat:stream-chunk',
+  CHAT_STREAM_DONE: 'chat:stream-done',
 } as const;
 
 export interface RetrievalSettings {
@@ -136,4 +152,38 @@ export interface FeedbackEntry {
   question: string;
   rating: 'positive' | 'negative';
   submittedAt: string;
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+export interface UploadedFileData {
+  name: string;
+  content: string;
+  type: string;
+}
+
+export interface ChatTools {
+  kbEnabled: boolean;
+  webEnabled: boolean;
+  files?: UploadedFileData[];
+}
+
+export interface ChatMessageData {
+  id: number;
+  sessionId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  toolsConfig?: ChatTools;
+  citations?: Citation[];
+  webResults?: Array<{ title: string; url: string; content: string }>;
+  uploadedFiles?: Array<{ name: string; type: string; size: number }>;
+  tokensUsed?: TokenUsage;
+  model?: string;
+  createdAt: string;
 }

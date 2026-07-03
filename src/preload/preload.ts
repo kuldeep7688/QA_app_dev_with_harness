@@ -23,6 +23,7 @@ const IPC_CHANNELS = {
   GET_STATUS: 'app:status',
   SHOW_OPEN_DIALOG: 'dialog:show-open',
   RESET_DATA: 'app:reset',
+  READ_FILE: 'app:read-file',
   LLM_HEALTH: 'llm:health',
   ASK_QUESTION_STREAM: 'qa:ask-stream',
   STREAM_CHUNK: 'qa:stream-chunk',
@@ -32,6 +33,17 @@ const IPC_CHANNELS = {
   SET_SETTINGS: 'settings:set',
   LLM_SETTINGS_GET: 'llm:settings:get',
   LLM_SETTINGS_SET: 'llm:settings:set',
+  SESSIONS_LIST: 'sessions:list',
+  SESSIONS_CREATE: 'sessions:create',
+  SESSIONS_GET: 'sessions:get',
+  SESSIONS_GET_MESSAGES: 'sessions:get-messages',
+  SESSIONS_UPDATE: 'sessions:update',
+  SESSIONS_DELETE: 'sessions:delete',
+  CHAT_SEND: 'chat:send',
+  CHAT_SEND_STREAM: 'chat:send-stream',
+  CHAT_CANCEL: 'chat:cancel',
+  CHAT_STREAM_CHUNK: 'chat:stream-chunk',
+  CHAT_STREAM_DONE: 'chat:stream-done',
 } as const;
 
 console.log('[Preload] IPC_CHANNELS:', IPC_CHANNELS);
@@ -87,6 +99,7 @@ const api = {
   },
   app: {
     resetData: () => ipcRenderer.invoke(IPC_CHANNELS.RESET_DATA),
+    readFile: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.READ_FILE, filePath) as Promise<{ name: string; content: string; type: string } | null>,
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
@@ -99,6 +112,32 @@ const api = {
   },
   llm: {
     health: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_HEALTH),
+  },
+  sessions: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.SESSIONS_LIST),
+    create: (title?: string) => ipcRenderer.invoke(IPC_CHANNELS.SESSIONS_CREATE, title),
+    get: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SESSIONS_GET, id),
+    getMessages: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.SESSIONS_GET_MESSAGES, sessionId),
+    update: (id: string, data: { title?: string }) => ipcRenderer.invoke(IPC_CHANNELS.SESSIONS_UPDATE, id, data),
+    delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SESSIONS_DELETE, id),
+  },
+  chat: {
+    send: (req: { sessionId: string; text: string; tools?: import('../shared/types').ChatTools }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHAT_SEND, req),
+    sendStream: (req: { sessionId: string; text: string; tools?: import('../shared/types').ChatTools; requestId: string }) => {
+      ipcRenderer.invoke(IPC_CHANNELS.CHAT_SEND_STREAM, req);
+    },
+    cancel: (requestId: string) => ipcRenderer.invoke(IPC_CHANNELS.CHAT_CANCEL, requestId),
+    onStreamChunk: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.CHAT_STREAM_CHUNK, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.CHAT_STREAM_CHUNK, handler);
+    },
+    onStreamDone: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.CHAT_STREAM_DONE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.CHAT_STREAM_DONE, handler);
+    },
   },
 };
 

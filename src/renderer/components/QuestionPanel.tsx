@@ -26,8 +26,8 @@ export function QuestionPanel({ onAsk, onCancel, isStreaming }: Props) {
       style={{
         display: 'flex',
         padding: '12px 20px',
-        borderTop: '1px solid #0f3460',
-        background: '#16213e',
+        borderTop: '1px solid var(--border-light)',
+        background: 'var(--kb-sidebar-bg)',
       }}
     >
       <input
@@ -39,9 +39,9 @@ export function QuestionPanel({ onAsk, onCancel, isStreaming }: Props) {
         style={{
           flex: 1,
           padding: '10px 14px',
-          background: isStreaming ? '#1a1a2e' : '#1a1a2e',
-          color: '#e0e0e0',
-          border: '1px solid #0f3460',
+          background: 'var(--bg-input)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-light)',
           borderRadius: '6px',
           fontSize: '14px',
           outline: 'none',
@@ -55,7 +55,7 @@ export function QuestionPanel({ onAsk, onCancel, isStreaming }: Props) {
           style={{
             marginLeft: '10px',
             padding: '10px 20px',
-            background: '#8b0000',
+            background: 'var(--danger)',
             color: '#fff',
             border: 'none',
             borderRadius: '6px',
@@ -72,7 +72,7 @@ export function QuestionPanel({ onAsk, onCancel, isStreaming }: Props) {
           style={{
             marginLeft: '10px',
             padding: '10px 20px',
-            background: '#533483',
+            background: 'var(--accent)',
             color: '#fff',
             border: 'none',
             borderRadius: '6px',

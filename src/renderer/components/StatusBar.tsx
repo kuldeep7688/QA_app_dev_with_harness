@@ -23,13 +23,13 @@ export function StatusBar({ status }: Props) {
   return (
     <div style={{
       padding: '4px 20px',
-      background: '#0f1729',
-      borderTop: '1px solid #0f3460',
+      background: 'var(--bg-statusbar)',
+      borderTop: '1px solid var(--border-light)',
       display: 'flex',
       alignItems: 'center',
       gap: '16px',
       fontSize: '11px',
-      color: '#888',
+      color: 'var(--text-muted)',
     }}>
       <span>
         <span style={{

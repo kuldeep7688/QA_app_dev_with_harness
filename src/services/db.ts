@@ -148,6 +148,8 @@ export function clearAllData(): void {
       // Delete from tables in order (respecting foreign key constraints)
       db.prepare('DELETE FROM feedback').run();
       db.prepare('DELETE FROM qa_history').run();
+      db.prepare('DELETE FROM chat_messages').run();
+      db.prepare('DELETE FROM sessions').run();
       db.prepare('DELETE FROM chunks_fts').run();  // FTS5 virtual table
       
       // Only clear chunks_vec if vector extension is loaded

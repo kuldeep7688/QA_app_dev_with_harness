@@ -7,7 +7,7 @@ Run this checklist before committing and at the end of each session.
 - [ ] `npm run check` passes with no type errors
 - [ ] `npm run build` completes successfully
 - [ ] No TypeScript warnings about unused variables or imports
-- [ ] `npm test` passes all 153 tests across 22 test files
+- [ ] `npm test` passes all 204 tests across 24 test files
 
 ## Architecture
 
