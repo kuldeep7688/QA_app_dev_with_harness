@@ -1,40 +1,46 @@
-/**
- * Test: Verify migrations are loaded from dist/
- */
-
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { initDatabase, closeDatabase } from '../src/services/db';
 import { runMigrations } from '../src/services/migrations/runner';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-console.log('=== Migration Loading Test ===\n');
+describe('Migration Loading', () => {
+  let testDir: string;
 
-// Create test directory
-const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-migration-test-'));
-console.log(`Test directory: ${testDir}\n`);
+  beforeAll(() => {
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-migration-test-'));
+  });
 
-// Initialize database
-const db = initDatabase(testDir);
+  afterAll(() => {
+    try { closeDatabase(); } catch { /* already closed */ }
+    fs.rmSync(testDir, { recursive: true, force: true });
+  });
 
-console.log('Running migrations...');
-runMigrations(db);
+  it('should run migrations and set schema version', () => {
+    const db = initDatabase(testDir);
+    runMigrations(db);
 
-// Check schema version
-const versionRow = db.prepare('SELECT value FROM schema_meta WHERE key = ?').get('version') as { value: string };
-console.log(`✓ Schema version: ${versionRow.value}\n`);
+    const versionRow = db.prepare('SELECT value FROM schema_meta WHERE key = ?').get('version') as { value: string };
+    expect(versionRow).toBeDefined();
+    expect(versionRow.value).toBeDefined();
+    expect(parseInt(versionRow.value, 10)).toBeGreaterThanOrEqual(1);
 
-// Check tables
-const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
-console.log('Tables created:');
-for (const table of tables) {
-  console.log(`  - ${table.name}`);
-}
-console.log();
+    closeDatabase();
+  });
 
-closeDatabase();
+  it('should create expected tables', () => {
+    const db = initDatabase(testDir);
+    runMigrations(db);
 
-// Cleanup
-fs.rmSync(testDir, { recursive: true });
+    const tableNames = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(t => t.name);
 
-console.log('=== Test Complete ===');
+    expect(tableNames).toContain('schema_meta');
+    expect(tableNames).toContain('documents');
+    expect(tableNames).toContain('chunks');
+    expect(tableNames).toContain('qa_history');
+    expect(tableNames).toContain('feedback');
+
+    closeDatabase();
+  });
+});

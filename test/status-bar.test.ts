@@ -1,119 +1,89 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { initDatabase, closeDatabase } from '../src/services/db';
+import { runMigrations } from '../src/services/migrations/runner';
 import { PersistenceService } from '../src/services/persistence-service';
 import { DocumentService } from '../src/services/document-service';
 import { IndexingService } from '../src/services/indexing-service';
 
-/**
- * Integration test: verify IndexingService.getStatus() returns all fields
- * required by the StatusBar component, with correct values at different
- * stages of the indexing workflow.
- */
+describe('Status Bar Indexing Status', () => {
+  const tempRoot = path.join(os.tmpdir(), 'kb-statusbar-test-' + Date.now());
+  let db: ReturnType<typeof initDatabase>;
+  let persistence: PersistenceService;
+  let documents: DocumentService;
+  let indexing: IndexingService;
+  let docIds: string[];
 
-const tempRoot = path.join(os.tmpdir(), 'kb-statusbar-test-' + Date.now());
-const dataDir = path.join(tempRoot, 'data');
-fs.mkdirSync(tempRoot, { recursive: true });
+  beforeAll(() => {
+    fs.mkdirSync(tempRoot, { recursive: true });
+    db = initDatabase(tempRoot);
+    runMigrations(db);
+    persistence = new PersistenceService(tempRoot);
+    documents = new DocumentService(persistence, db);
+    indexing = new IndexingService(persistence, db);
 
-let failed = 0;
-function check(label: string, cond: boolean, detail?: string) {
-  if (cond) {
-    console.log(`PASS: ${label}`);
-  } else {
-    console.error(`FAIL: ${label}${detail ? ' -- ' + detail : ''}`);
-    failed++;
-  }
-}
+    // Create sample documents
+    const doc1Path = path.join(tempRoot, 'doc1.md');
+    const doc2Path = path.join(tempRoot, 'doc2.txt');
+    const doc3Path = path.join(tempRoot, 'doc3.md');
+    fs.writeFileSync(doc1Path, '# Document 1\n\nFirst sample document for status bar testing.\n\nThis has multiple paragraphs so indexing can create chunks.', 'utf-8');
+    fs.writeFileSync(doc2Path, 'Document 2\n\nSecond sample document with text format.\n\nAlso has multiple paragraphs for chunk generation.', 'utf-8');
+    fs.writeFileSync(doc3Path, '# Document 3\n\nThird sample document.\n\nMore content for testing status transitions.', 'utf-8');
 
-async function run() {
-  const persistence = new PersistenceService(dataDir);
-  const documents = new DocumentService(persistence);
-  const indexing = new IndexingService(persistence);
+    const d1 = documents.importDocument(doc1Path);
+    const d2 = documents.importDocument(doc2Path);
+    const d3 = documents.importDocument(doc3Path);
+    docIds = [d1.id, d2.id, d3.id];
+  });
 
-  // Stage 1: No documents (idle state)
-  console.log('=== Stage 1: No documents ===');
-  {
+  afterAll(() => {
+    try { closeDatabase(); } catch { /* already closed */ }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  it('Stage 1: 3 documents imported, none indexed', () => {
     const status = indexing.getStatus();
-    check('Stage 1: documentsLoaded=0', status.documentsLoaded === 0);
-    check('Stage 1: indexStatus=idle', status.indexStatus === 'idle');
-    check('Stage 1: indexedCount=0', status.indexedCount === 0);
-    check('Stage 1: lastActivity is ISO string', typeof status.lastActivity === 'string' && status.lastActivity.length > 0);
-  }
+    expect(status.documentsLoaded).toBe(3);
+    expect(status.indexStatus).toBe('idle');
+    expect(status.indexedCount).toBe(0);
+    expect(typeof status.lastActivity).toBe('string');
+    expect(status.lastActivity.length).toBeGreaterThan(0);
+  });
 
-  // Create sample documents
-  const doc1Path = path.join(tempRoot, 'doc1.md');
-  const doc2Path = path.join(tempRoot, 'doc2.txt');
-  const doc3Path = path.join(tempRoot, 'doc3.md');
-  fs.writeFileSync(doc1Path, '# Document 1\n\nFirst sample document for status bar testing.\n\nThis has multiple paragraphs so indexing can create chunks.', 'utf-8');
-  fs.writeFileSync(doc2Path, 'Document 2\n\nSecond sample document with text format.\n\nAlso has multiple paragraphs for chunk generation.', 'utf-8');
-  fs.writeFileSync(doc3Path, '# Document 3\n\nThird sample document.\n\nMore content for testing status transitions.', 'utf-8');
+  it('Stage 2: 1 of 3 indexed shows indexing status', async () => {
+    await indexing.startIndexing(docIds[0]);
 
-  const doc1 = documents.importDocument(doc1Path);
-  const doc2 = documents.importDocument(doc2Path);
-  const doc3 = documents.importDocument(doc3Path);
-
-  // Stage 2: 3 documents imported, none indexed
-  console.log('\n=== Stage 2: 3 documents imported, none indexed ===');
-  {
     const status = indexing.getStatus();
-    check('Stage 2: documentsLoaded=3', status.documentsLoaded === 3, `got ${status.documentsLoaded}`);
-    check('Stage 2: indexStatus=idle', status.indexStatus === 'idle', `got ${status.indexStatus}`);
-    check('Stage 2: indexedCount=0', status.indexedCount === 0, `got ${status.indexedCount}`);
-  }
+    expect(status.documentsLoaded).toBe(3);
+    expect(status.indexStatus).toBe('indexing');
+    expect(status.indexedCount).toBe(1);
+  });
 
-  // Stage 3: 1 document indexed
-  console.log('\n=== Stage 3: 1 of 3 indexed ===');
-  await indexing.startIndexing(doc1.id);
-  {
+  it('Stage 3: 2 of 3 indexed shows indexing status', async () => {
+    await indexing.startIndexing(docIds[1]);
+
     const status = indexing.getStatus();
-    check('Stage 3: documentsLoaded=3', status.documentsLoaded === 3);
-    check('Stage 3: indexStatus=indexing', status.indexStatus === 'indexing', `got ${status.indexStatus}`);
-    check('Stage 3: indexedCount=1', status.indexedCount === 1, `got ${status.indexedCount}`);
-  }
+    expect(status.documentsLoaded).toBe(3);
+    expect(status.indexStatus).toBe('indexing');
+    expect(status.indexedCount).toBe(2);
+  });
 
-  // Stage 4: 2 documents indexed
-  console.log('\n=== Stage 4: 2 of 3 indexed ===');
-  await indexing.startIndexing(doc2.id);
-  {
+  it('Stage 4: all 3 indexed shows ready status', async () => {
+    await indexing.startIndexing(docIds[2]);
+
     const status = indexing.getStatus();
-    check('Stage 4: documentsLoaded=3', status.documentsLoaded === 3);
-    check('Stage 4: indexStatus=indexing', status.indexStatus === 'indexing', `got ${status.indexStatus}`);
-    check('Stage 4: indexedCount=2', status.indexedCount === 2, `got ${status.indexedCount}`);
-  }
+    expect(status.documentsLoaded).toBe(3);
+    expect(status.indexStatus).toBe('ready');
+    expect(status.indexedCount).toBe(3);
+  });
 
-  // Stage 5: All documents indexed (ready)
-  console.log('\n=== Stage 5: 3 of 3 indexed (ready) ===');
-  await indexing.startIndexing(doc3.id);
-  {
-    const status = indexing.getStatus();
-    check('Stage 5: documentsLoaded=3', status.documentsLoaded === 3);
-    check('Stage 5: indexStatus=ready', status.indexStatus === 'ready', `got ${status.indexStatus}`);
-    check('Stage 5: indexedCount=3', status.indexedCount === 3, `got ${status.indexedCount}`);
-  }
-
-  // Verify lastActivity timestamp is recent (within last second)
-  console.log('\n=== Verify lastActivity timestamp ===');
-  {
+  it('Stage 5: lastActivity timestamp is recent', () => {
     const status = indexing.getStatus();
     const lastActivity = new Date(status.lastActivity);
     const now = new Date();
     const diffMs = now.getTime() - lastActivity.getTime();
-    check('lastActivity is recent (within 1 second)', diffMs < 1000, `diffMs=${diffMs}`);
-  }
-
-  // Cleanup
-  fs.rmSync(tempRoot, { recursive: true, force: true });
-
-  if (failed === 0) {
-    console.log('\nAll status bar tests passed.');
-    process.exit(0);
-  } else {
-    console.error(`\n${failed} test(s) failed.`);
-    process.exit(1);
-  }
-}
-
-run().catch(err => {
-  console.error('Test crashed:', err);
-  process.exit(2);
+    expect(diffMs).toBeLessThan(1000);
+  });
 });

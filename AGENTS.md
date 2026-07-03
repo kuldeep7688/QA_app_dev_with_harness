@@ -111,6 +111,13 @@ When resuming work, read `session-handoff.md` for context from the previous sess
 
 Update the `agent-progress.md` by appending a new entry with implementation details, learnings, and verification
 
+## Testing
+
+- **Always use `npm test`** to run all 153 tests across 22 test files. This handles the native module rebuild: `pretest` rebuilds `better-sqlite3` for Node.js, then vitest runs, then `posttest` rebuilds it back for Electron.
+- **Never run `npx vitest run` directly** — it skips the `pretest` hook, so 18 test files fail with `NODE_MODULE_VERSION` mismatch (Node.js 127 vs Electron 146).
+- To run a single test file: `npx vitest run test/<file>.test.ts` — but only after running `npm rebuild better-sqlite3` first.
+- Vitest picks up all `*.test.ts` files under `test/` automatically.
+
 ## Clean State
 
 Before each major testing cycle:

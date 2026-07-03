@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -6,6 +6,22 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const ENV_PATH = path.join(PROJECT_ROOT, '.env');
 
 describe('env-config', () => {
+  let originalEnvContent: string | null = null;
+
+  beforeAll(() => {
+    // Save any existing .env so we can restore it after tests
+    try { originalEnvContent = fs.readFileSync(ENV_PATH, 'utf-8'); } catch { originalEnvContent = null; }
+  });
+
+  afterAll(() => {
+    // Restore the original .env if it existed
+    if (originalEnvContent !== null) {
+      fs.writeFileSync(ENV_PATH, originalEnvContent, 'utf-8');
+    } else {
+      try { fs.unlinkSync(ENV_PATH); } catch { /* nothing to clean */ }
+    }
+  });
+
   beforeEach(() => {
     try { fs.unlinkSync(ENV_PATH); } catch { /* ok */ }
     delete process.env.NVIDIA_API_KEY;

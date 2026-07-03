@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { QAHistory, Citation } from '../shared-types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { QAHistory, Citation, TokenUsage } from '../shared-types';
 
 interface ConversationHistoryProps {
   history: QAHistory[];
   onClearHistory: () => void;
   onSubmitFeedback: (responseTimestamp: string, question: string, rating: 'positive' | 'negative') => void;
   streamingEntry?: { question: string; partialAnswer: string; hasError: boolean; cancelled: boolean } | null;
+  sessionTokens?: TokenUsage;
 }
 
 /** Format ISO timestamp to a readable local time string. */
@@ -15,6 +18,15 @@ function formatTime(iso: string): string {
   } catch {
     return '';
   }
+}
+
+/** Format token count in human-readable form: 1.2K, 350, 14.5K */
+function formatTokens(count: number): string {
+  if (count >= 1000) {
+    const k = count / 1000;
+    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
+  }
+  return String(count);
 }
 
 /** Color-code confidence: green ≥ 0.7, yellow ≥ 0.4, red otherwise. */
@@ -140,7 +152,107 @@ function CitationsBlock({ citations }: CitationsBlockProps) {
   );
 }
 
-export function ConversationHistory({ history, onClearHistory, onSubmitFeedback, streamingEntry }: ConversationHistoryProps) {
+const markdownComponents = {
+  code({ className, children, ...props }: { className?: string; children?: React.ReactNode }) {
+    const isInline = !className;
+    if (isInline) {
+      return (
+        <code
+          style={{
+            background: '#2a2a4e',
+            padding: '1px 5px',
+            borderRadius: '3px',
+            fontSize: '13px',
+            color: '#ffcc88',
+          }}
+          {...props}
+        >
+          {children}
+        </code>
+      );
+    }
+    return (
+      <pre
+        style={{
+          background: '#0d0d1a',
+          padding: '12px',
+          borderRadius: '6px',
+          overflowX: 'auto',
+          border: '1px solid #2a2a4e',
+          fontSize: '13px',
+          lineHeight: 1.5,
+          color: '#c0c0e0',
+        }}
+      >
+        <code className={className} {...props}>
+          {children}
+        </code>
+      </pre>
+    );
+  },
+  table({ children }: { children?: React.ReactNode }) {
+    return (
+      <div style={{ overflowX: 'auto', marginTop: '8px', marginBottom: '8px' }}>
+        <table
+          style={{
+            borderCollapse: 'collapse',
+            width: '100%',
+            fontSize: '13px',
+            color: '#d0d0f0',
+          }}
+        >
+          {children}
+        </table>
+      </div>
+    );
+  },
+  th({ children }: { children?: React.ReactNode }) {
+    return (
+      <th
+        style={{
+          border: '1px solid #2a2a5e',
+          padding: '6px 10px',
+          background: '#1a1a3e',
+          textAlign: 'left',
+          fontWeight: 600,
+        }}
+      >
+        {children}
+      </th>
+    );
+  },
+  td({ children }: { children?: React.ReactNode }) {
+    return (
+      <td style={{ border: '1px solid #2a2a5e', padding: '6px 10px' }}>
+        {children}
+      </td>
+    );
+  },
+  blockquote({ children }: { children?: React.ReactNode }) {
+    return (
+      <blockquote
+        style={{
+          borderLeft: '3px solid #533483',
+          margin: '8px 0',
+          padding: '4px 12px',
+          color: '#a0a0c0',
+          background: '#1a1a2a',
+        }}
+      >
+        {children}
+      </blockquote>
+    );
+  },
+  a({ href, children }: { href?: string; children?: React.ReactNode }) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#88bbff' }}>
+        {children}
+      </a>
+    );
+  },
+};
+
+export function ConversationHistory({ history, onClearHistory, onSubmitFeedback, streamingEntry, sessionTokens }: ConversationHistoryProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set());
 
@@ -179,6 +291,18 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
               }}
             >
               ({history.length} exchange{history.length !== 1 ? 's' : ''})
+            </span>
+          )}
+          {sessionTokens && sessionTokens.total > 0 && (
+            <span
+              style={{
+                marginLeft: '8px',
+                fontSize: '11px',
+                fontWeight: 400,
+                color: '#555588',
+              }}
+            >
+              · {formatTokens(sessionTokens.total)} tokens total
             </span>
           )}
         </span>
@@ -238,18 +362,6 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                     }}
                   >
                     <div>{entry.question}</div>
-                    {entry.response.timestamp && (
-                      <div
-                        style={{
-                          marginTop: '4px',
-                          fontSize: '11px',
-                          color: '#a090cc',
-                          textAlign: 'right',
-                        }}
-                      >
-                        {formatTime(entry.response.timestamp)}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -267,7 +379,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                       color: '#d0d0f0',
                     }}
                   >
-                    <div>{entry.response.answer}</div>
+                    <div><ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{entry.response.answer}</ReactMarkdown></div>
 
                     {/* Confidence indicator */}
                     <div
@@ -290,13 +402,14 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                     {/* Expandable citations */}
                     <CitationsBlock citations={entry.response.citations} />
 
-                    {/* Token usage */}
-                    {entry.response.tokensUsed && (
-                      <div style={{ marginTop: '6px', fontSize: '11px', color: '#6666aa' }}>
-                        {entry.response.tokensUsed.total} tokens
-                        {entry.response.modelUsed ? ` · ${entry.response.modelUsed}` : ''}
-                      </div>
-                    )}
+                    {/* Token usage and timestamp */}
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#6666aa' }}>
+                      {entry.response.tokensUsed
+                        ? `${formatTokens(entry.response.tokensUsed.total)} tokens · ${formatTime(entry.response.timestamp)}`
+                        : formatTime(entry.response.timestamp)
+                      }
+                      {entry.response.modelUsed ? ` · ${entry.response.modelUsed}` : ''}
+                    </div>
 
                     {/* Feedback buttons */}
                     <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
@@ -382,7 +495,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                   }}
                 >
                   <div>
-                    {streamingEntry.partialAnswer}
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{streamingEntry.partialAnswer}</ReactMarkdown>
                     {!streamingEntry.hasError && !streamingEntry.cancelled && streamingEntry.partialAnswer && (
                       <span style={{ animation: 'blink 1s step-end infinite', marginLeft: '2px' }}>▊</span>
                     )}

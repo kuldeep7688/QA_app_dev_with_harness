@@ -7,7 +7,7 @@ import { StatusBar } from './components/StatusBar';
 import { ConversationHistory } from './components/ConversationHistory';
 import { ResetDialog } from './components/ResetDialog';
 import { SettingsPanel } from './components/SettingsPanel';
-import { Document, AppStatus, QAHistory } from './shared-types';
+import { Document, AppStatus, QAHistory, TokenUsage } from './shared-types';
 
 export function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -28,6 +28,9 @@ export function App() {
 
   // Streaming state
   const [streamingEntry, setStreamingEntry] = useState<{ question: string; partialAnswer: string; hasError: boolean; cancelled: boolean } | null>(null);
+
+  // Cumulative token tracking (in-memory, resets on app restart)
+  const [sessionTokens, setSessionTokens] = useState<TokenUsage>({ prompt: 0, completion: 0, total: 0 });
   const currentRequestId = useRef<string | null>(null);
   const unsubChunk = useRef<(() => void) | null>(null);
   const unsubDone = useRef<(() => void) | null>(null);
@@ -47,6 +50,14 @@ export function App() {
       if (data.requestId !== currentRequestId.current) return;
       currentRequestId.current = null;
       setStreamingEntry(null);
+      const tokens = data.response?.tokensUsed;
+      if (tokens) {
+        setSessionTokens(prev => ({
+          prompt: prev.prompt + tokens.prompt,
+          completion: prev.completion + tokens.completion,
+          total: prev.total + tokens.total,
+        }));
+      }
       refreshHistory();
     });
 
@@ -90,6 +101,19 @@ export function App() {
     try {
       const h = await window.knowledgeBase.qa.history();
       setHistory(h);
+      // Compute cumulative session totals from history
+      const totals = h.reduce(
+        (acc, entry) => {
+          if (entry.response.tokensUsed) {
+            acc.prompt += entry.response.tokensUsed.prompt;
+            acc.completion += entry.response.tokensUsed.completion;
+            acc.total += entry.response.tokensUsed.total;
+          }
+          return acc;
+        },
+        { prompt: 0, completion: 0, total: 0 },
+      );
+      setSessionTokens(totals);
     } catch (err) {
       console.error('Failed to refresh history:', err);
     }
@@ -149,6 +173,7 @@ export function App() {
     try {
       await window.knowledgeBase.qa.clearHistory();
       setHistory([]);
+      setSessionTokens({ prompt: 0, completion: 0, total: 0 });
     } catch (err) {
       console.error('Clear history failed:', err);
     }
@@ -332,6 +357,7 @@ export function App() {
                 onClearHistory={handleClearHistory}
                 onSubmitFeedback={handleSubmitFeedback}
                 streamingEntry={streamingEntry}
+                sessionTokens={sessionTokens}
               />
             ) : selectedDoc ? (
               <DocumentDetail

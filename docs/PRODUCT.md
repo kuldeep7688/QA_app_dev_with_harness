@@ -158,7 +158,7 @@ The final milestone replaces the mock Q&A patterns with real LLM-generated answe
 - **Honest refusals.** When no relevant documents are found, the model refuses to answer rather than hallucinating. The system prompt enforces this.
 - **LLM status indicator.** A colour-coded dot in the StatusBar shows whether the LLM provider is reachable (green), checking (yellow), or down (red).
 - **Cancel mid-stream.** The "Ask" button becomes a "Cancel" button during generation. Pressing it aborts the request immediately.
-- **Per-answer token count.** Each response displays token usage (prompt + completion = total) beside the timestamp.
+- **Per-answer token count.** Each response displays token usage (`1.2K tokens | 3:15 PM`) beside the timestamp, with cumulative session totals shown in the conversation header.
 - **LLM settings.** Model name, temperature, max tokens, streaming toggle, and custom system prompt are all configurable via a settings panel. The default model comes from `.env`; settings override at runtime.
 - **Sensible error messages.** Invalid key → "Check your .env file." Rate limited → "Please wait." Service down → "Check your connection." No raw error dumps.
 

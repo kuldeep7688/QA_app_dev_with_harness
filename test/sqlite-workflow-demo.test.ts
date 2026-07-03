@@ -1,7 +1,4 @@
-/**
- * Quick demo: Import → Index → Query workflow using SQLite
- */
-
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -13,84 +10,56 @@ import { IndexingService } from '../src/services/indexing-service';
 import { QaService } from '../src/services/qa-service';
 import { embed } from '../src/services/embedding-service';
 
-async function demo() {
-  console.log('=== SQLite Workflow Demo ===\n');
+describe('SQLite Workflow Demo', () => {
+  let testDir: string;
 
-  // Create test directory
-  const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-sqlite-demo-'));
-  console.log(`Test directory: ${testDir}\n`);
+  beforeAll(() => {
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-sqlite-demo-'));
+  });
 
-  // Create a sample document
-  const sampleDoc = path.join(testDir, 'sample.txt');
-  fs.writeFileSync(sampleDoc, 'This is a test document about architecture and design patterns. The system uses a layered approach.');
+  afterAll(() => {
+    try { closeDatabase(); } catch { /* already closed */ }
+    fs.rmSync(testDir, { recursive: true, force: true });
+  });
 
-  // Initialize services
-  const db = initDatabase(testDir);
-  runMigrations(db);
+  it('should import a document and verify it in the database', async () => {
+    const sampleDoc = path.join(testDir, 'sample.txt');
+    fs.writeFileSync(sampleDoc, 'This is a test document about architecture and design patterns. The system uses a layered approach.');
 
-  const persistence = new PersistenceService(testDir);
-  const docService = new DocumentService(persistence, db);
-  const indexService = new IndexingService(persistence, db);
-  const qaService = new QaService(db, embed);
+    const db = initDatabase(testDir);
+    runMigrations(db);
 
-  console.log('--- Step 1: Import Document ---');
-  const doc = docService.importDocument(sampleDoc);
-  console.log(`✓ Imported: ${doc.title} (ID: ${doc.id})`);
-  console.log(`  Status: ${doc.status}`);
-  console.log(`  Word count: ${doc.wordCount}\n`);
+    const persistence = new PersistenceService(testDir);
+    const docService = new DocumentService(persistence, db);
+    const indexService = new IndexingService(persistence, db);
+    const qaService = new QaService(db, embed);
 
-  // Check database
-  const docsInDb = db.prepare('SELECT * FROM documents').all();
-  console.log(`✓ Documents in DB: ${docsInDb.length}\n`);
+    const doc = docService.importDocument(sampleDoc);
+    expect(doc.id).toBeDefined();
+    expect(doc.status).toBeDefined();
+    expect(typeof doc.wordCount).toBe('number');
 
-  console.log('--- Step 2: Index Document ---');
-  await indexService.startIndexing(doc.id);
+    const docsInDb = db.prepare('SELECT * FROM documents').all();
+    expect(docsInDb.length).toBe(1);
 
-  const chunksInDb = db.prepare('SELECT COUNT(*) as count FROM chunks').get() as { count: number };
-  console.log(`✓ Chunks created: ${chunksInDb.count}`);
+    await indexService.startIndexing(doc.id);
 
-  // Show chunk details
-  const chunks = db.prepare('SELECT id, idx, word_count, substr(content, 1, 50) as preview FROM chunks').all();
-  console.log('\nChunk details:');
-  for (const chunk of chunks as any[]) {
-    console.log(`  Chunk ${chunk.idx}: ${chunk.word_count} words - "${chunk.preview}..."`);
-  }
-  console.log();
+    const chunksInDb = db.prepare('SELECT COUNT(*) as count FROM chunks').get() as { count: number };
+    expect(chunksInDb.count).toBeGreaterThan(0);
 
-  console.log('--- Step 3: Ask Question ---');
-  const answer = await qaService.ask('What is the architecture about?');
-  console.log(`✓ Question answered`);
-  console.log(`  Confidence: ${answer.confidence}`);
-  console.log(`  Citations: ${answer.citations.length}`);
-  console.log(`  Answer: ${answer.answer.substring(0, 100)}...\n`);
+    const answer = await qaService.ask('What is the architecture about?');
+    expect(answer).toBeDefined();
+    expect(answer.citations.length).toBeGreaterThan(0);
+    expect(answer.answer.length).toBeGreaterThan(0);
 
-  const qaInDb = db.prepare('SELECT COUNT(*) as count FROM qa_history').get() as { count: number };
-  console.log(`✓ Q&A history entries in DB: ${qaInDb.count}\n`);
+    qaService.submitFeedback(answer.timestamp, 'What is the architecture about?', 'positive');
 
-  console.log('--- Step 4: Submit Feedback ---');
-  qaService.submitFeedback(answer.timestamp, 'What is the architecture about?', 'positive');
+    const qaInDb = db.prepare('SELECT COUNT(*) as count FROM qa_history').get() as { count: number };
+    expect(qaInDb.count).toBe(1);
 
-  const feedbackInDb = db.prepare('SELECT COUNT(*) as count FROM feedback').get() as { count: number };
-  console.log(`✓ Feedback entries in DB: ${feedbackInDb.count}\n`);
+    const feedbackInDb = db.prepare('SELECT COUNT(*) as count FROM feedback').get() as { count: number };
+    expect(feedbackInDb.count).toBe(1);
 
-  console.log('--- Database Contents ---');
-  console.log(`Documents: ${docsInDb.length}`);
-  console.log(`Chunks: ${chunksInDb.count}`);
-  console.log(`Q&A History: ${qaInDb.count}`);
-  console.log(`Feedback: ${feedbackInDb.count}\n`);
-
-  console.log('--- Database Path ---');
-  console.log(`${testDir}/index.db\n`);
-
-  console.log('You can inspect it with:');
-  console.log(`  sqlite3 ${testDir}/index.db`);
-  console.log(`  SELECT * FROM documents;`);
-  console.log(`  SELECT * FROM chunks;`);
-  console.log(`  SELECT * FROM qa_history;`);
-  console.log(`  SELECT * FROM feedback;\n`);
-
-  closeDatabase();
-  console.log('=== Demo Complete ===');
-}
-
-demo().catch(console.error);
+    closeDatabase();
+  });
+});

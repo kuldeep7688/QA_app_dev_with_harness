@@ -65,9 +65,10 @@ Every log entry is a single-line JSON object:
 
 **QaService:**
 - Question processing start
-- Answer generation with confidence and duration
+- Answer generation with confidence, duration, model, and token usage
 - Feedback submission
 - History clear
+- Token usage logged as `prompt p / completion c / total t`
 
 **IPC Handlers:**
 - Every channel invocation (INFO for mutations, DEBUG for reads)
