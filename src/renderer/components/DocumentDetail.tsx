@@ -61,7 +61,7 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
             background: 'var(--accent-secondary)',
             color: 'var(--text-primary)',
             border: '1px solid var(--accent-secondary-hover)',
-            borderRadius: '4px',
+            borderRadius: 'var(--radius-sm)',
             cursor: loadingContent ? 'wait' : 'pointer',
             fontSize: '12px',
           }}
@@ -75,7 +75,7 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
             background: 'var(--accent-secondary)',
             color: 'var(--text-primary)',
             border: '1px solid var(--accent-secondary-hover)',
-            borderRadius: '4px',
+            borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
             fontSize: '12px',
           }}
@@ -93,7 +93,7 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
               background: 'var(--accent)',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '12px',
             }}
@@ -109,7 +109,7 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
               background: 'var(--delete)',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '12px',
             }}
@@ -124,7 +124,7 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
         <div style={{
           padding: '16px',
           background: 'var(--conversation-card-bg)',
-          borderRadius: '6px',
+          borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-light)',
           fontSize: '13px',
           lineHeight: 1.6,
@@ -146,7 +146,7 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
                 padding: '10px',
                 marginBottom: '8px',
                 background: 'var(--conversation-card-bg)',
-                borderRadius: '4px',
+                borderRadius: 'var(--radius-sm)',
                 borderLeft: '3px solid var(--accent)',
                 fontSize: '13px',
                 lineHeight: 1.5,

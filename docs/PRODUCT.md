@@ -124,8 +124,8 @@ Each message in Chat View can activate one or more tools via toggle buttons abov
 ## Constraints
 
 - Maximum supported file size for KB import: 10 MB.
-- Supported formats for KB import: `.txt`, `.md`.
-- Supported formats for chat file upload: `.txt`, `.md`.
+- Supported formats for KB import: `.txt`, `.md`, `.pdf`, `.docx`.
+- Supported formats for chat file upload: `.txt`, `.md`, `.pdf`, `.docx`.
 - LLM provider: NVIDIA NIM (requires network and API key).
 - Web search provider: Tavily API (requires network and API key).
 - Embeddings are local (no network) after initial ~25 MB model download.

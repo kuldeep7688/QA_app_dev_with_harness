@@ -36,7 +36,7 @@ describe('Data Persistence Across Service Restart', () => {
     const qa = new QaService(db, embed);
 
     const srcPath = path.join(tempRoot, 'persistence-sample.md');
-    const doc = documents.importDocument(srcPath);
+    const doc = await documents.importDocument(srcPath);
     expect(doc.id).toBeDefined();
 
     await indexing.startIndexing(doc.id);

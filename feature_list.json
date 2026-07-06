@@ -449,6 +449,22 @@
       "status": "pass",
       "evidence": "Added theme toggle button in app header using ☀️/🌙 emoji. Implemented CSS custom property system with 40+ variables covering backgrounds, text, accent, borders, chat bubbles, code, quotes, status indicators, toggles, and badges. Dark theme preserves original colors; light theme uses complementary light-mode palette. All hardcoded colors in index.html CSS and inline styles across 11 components (App.tsx, ConversationHistory, SettingsPanel, StatusBar, ResetDialog, QuestionPanel, ImportPanel, DocumentDetail, DocumentList, ChatView, ChatInput, SessionList) replaced with var() references. Theme toggled via React state + documentElement data-theme attribute. TypeScript 0 errors, Vite build 290 modules, 204/204 tests pass.",
       "testedAt": "2026-07-03T20:26:00Z"
+    },
+    {
+      "id": "extended-file-support",
+      "name": "Extended File Support (PDF, DOCX)",
+      "description": "Document import and chat file upload support extended to .pdf and .docx formats in addition to existing .txt and .md. Text extraction via pdf-parse (PDF) and mammoth (DOCX) libraries.",
+      "status": "pass",
+      "evidence": "Created FileExtractionService in src/services/file-extraction-service.ts with async extractText() supporting .txt/.md/.pdf/.docx via pdf-parse v2 and mammoth. DocumentService.importDocument() and IPC READ_FILE handler both use extraction service for binary formats. Dialog filter extended to ['txt', 'md', 'pdf', 'docx']. ImportPanel updated to show supported formats. TypeScript 0 errors, 204/204 tests pass.",
+      "testedAt": "2026-07-06T14:49:00Z"
+    }
+    {
+      "id": "ui-polish",
+      "name": "UI Polish — Micro-interactions & Entrance Animations",
+      "description": "CSS custom easing curves (--ease-out, --ease-in-out) and radius variables (--radius-sm/md/lg/xl). Button :active scale(0.97) feedback with 160ms ease-out transition. Hover transitions on all interactive elements with @media (hover: hover) guard. Modal overlay/content entrance animations (scale 0.95→1, opacity fade). Chat message bubble entrance stagger animation (bubbleIn 250ms ease-out, 40ms stagger). QA conversation entry stagger animation. Streaming cursor changed from blink to pulse animation. Session item active border-left transition. Document list item transition. Status dot pulsing for active index states. focus-visible outline ring on all form elements. Streaming cursor now uses pulse keyframe (opacity 0.3→1) with ease-in-out for smoother appearance. All animations use CSS transitions/keyframes only — no JS animation libraries added.",
+      "status": "pass",
+      "evidence": "TypeScript compiles 0 errors. All 204 tests pass (24/24 test files). All changes limited to src/renderer/index.html CSS + component .tsx files. No new dependencies. No behavioral changes. Animations respect CSS custom properties for theming.",
+      "testedAt": "2026-07-06T15:45:00Z"
     }
   ]
 }

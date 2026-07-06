@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type Database from 'better-sqlite3';
 import { Document } from '../shared/types';
 import { PersistenceService } from './persistence-service';
+import { extractText } from './file-extraction-service';
 import { logger } from './logger';
 
 const log = logger.forService('DocumentService');
@@ -37,7 +38,7 @@ export class DocumentService {
   }
 
   /** Import a file from the given path. */
-  importDocument(filePath: string): Document {
+  async importDocument(filePath: string): Promise<Document> {
     log.info('Starting document import', { filePath });
     
     if (!fs.existsSync(filePath)) {
@@ -46,13 +47,12 @@ export class DocumentService {
     }
 
     const filename = path.basename(filePath);
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const { content, ext: fileType } = await extractText(filePath);
     const stats = fs.statSync(filePath);
 
     // Extract metadata
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     const lineCount = content.split('\n').length;
-    const fileType = path.extname(filename).toLowerCase().replace('.', '') || 'txt';
 
     const doc: Document = {
       id: uuidv4(),

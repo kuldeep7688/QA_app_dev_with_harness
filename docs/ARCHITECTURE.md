@@ -86,7 +86,7 @@ React 18 application bundled by Vite. Two top-level views navigated via a tab ba
 **Knowledge Base View:**
 - `DocumentList` -- Sidebar listing of imported documents.
 - `DocumentDetail` -- Metadata, content, chunks, delete/reindex controls.
-- `ImportPanel` -- File picker for `.txt` and `.md` documents.
+- `ImportPanel` -- File picker for `.txt`, `.md`, `.pdf`, and `.docx` documents.
 - `ConversationHistory` -- KB-only Q&A history (legacy, distinct from Chat).
 - `QuestionPanel` -- Input bar for KB-only questions.
 
@@ -122,6 +122,7 @@ React 18 application bundled by Vite. Two top-level views navigated via a tab ba
 | `EmbeddingService` | `src/services/embedding-service.ts` | Local MiniLM-L6-v2 model, embed/embedBatch (384-dim) |
 | `SettingsService` | `src/services/settings-service.ts` | RetrievalSettings + LlmSettings CRUD with validation + caching |
 | `PersistenceService` | `src/services/persistence-service.ts` | Filesystem I/O for content files and reset operations |
+| `FileExtractionService` | `src/services/file-extraction-service.ts` | Text extraction from .txt, .md, .pdf, .docx files |
 
 **LLM Providers:**
 
@@ -140,8 +141,8 @@ React 18 application bundled by Vite. Two top-level views navigated via a tab ba
 3. Preload bridge invokes ipcRenderer.invoke('documents:import', filePath)
 4. ipc-handlers.ts delegates to DocumentService.importDocument(filePath)
 5. DocumentService:
-   a. Validates file exists, within 10MB, supported format (.txt/.md)
-   b. Reads file content and stats
+   a. Validates file exists, within 10MB, supported format (.txt/.md/.pdf/.docx)
+    b. Reads file content via FileExtractionService (text extraction per format)
    c. Creates Document metadata object with UUID (wordCount, lineCount, fileType)
    d. Copies file to documents/ directory via PersistenceService
    e. Stores extracted text to content/<doc-id>.txt

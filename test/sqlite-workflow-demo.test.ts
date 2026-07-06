@@ -34,7 +34,7 @@ describe('SQLite Workflow Demo', () => {
     const indexService = new IndexingService(persistence, db);
     const qaService = new QaService(db, embed);
 
-    const doc = docService.importDocument(sampleDoc);
+    const doc = await docService.importDocument(sampleDoc);
     expect(doc.id).toBeDefined();
     expect(doc.status).toBeDefined();
     expect(typeof doc.wordCount).toBe('number');

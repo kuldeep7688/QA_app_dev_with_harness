@@ -1,5 +1,59 @@
 # Agent Progress Log
 
+## Session: 2026-07-06
+
+### Task: UI Polish — Micro-interactions & Entrance Animations
+
+**Duration:** ~20 minutes
+
+### Changes Made
+
+1. **CSS custom properties** added to both dark/light themes in `index.html`:
+   - `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)` and `--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)`
+   - `--radius-sm: 4px`, `--radius-md: 6px`, `--radius-lg: 8px`, `--radius-xl: 12px`
+
+2. **Animation keyframes** added in `index.html`:
+   - `bubbleIn` — opacity 0→1, translateY 8px→0 (message entrance)
+   - `modalOverlayIn` — opacity fade (overlay entrance)
+   - `modalContentIn` — scale 0.95→1 + opacity (content entrance)
+   - `pulse` — opacity 0.3↔1 (replaces blink for smoother cursor)
+
+3. **Interactive element transitions** — 150ms ease-out on all buttons, active states with `scale(0.97)`, hover states with `@media (hover: hover)` guard
+
+4. **Message stagger** — `.chat-message` and `.qa-entry` get 40ms staggered `bubbleIn` animation
+
+5. **Modal entrance** — `.modal-overlay` + `.modal-content` classes added to `ResetDialog` and `SettingsPanel`
+
+6. **Component radius standardization** — inline `borderRadius` values across 11 components replaced with CSS variables
+
+7. **Streaming cursor** — changed from `blink` keyframe to `pulse` with ease-in-out timing
+
+8. **Status dots** — pulse animation during active index state
+
+### Files Modified
+
+- `src/renderer/index.html` — CSS variables, keyframes, transitions, active states, hover guards, focus-visible, animations
+- `src/renderer/App.tsx` — border-radius variables for header buttons
+- `src/renderer/components/ResetDialog.tsx` — modal animation classes, radius variables
+- `src/renderer/components/SettingsPanel.tsx` — modal animation classes, radius variables
+- `src/renderer/components/ChatView.tsx` — (auto picks up stagger from CSS class)
+- `src/renderer/components/ConversationHistory.tsx` — qa-entry class, streaming cursor class, radius variables
+- `src/renderer/components/DocumentList.tsx` — document-list-item class
+- `src/renderer/components/StatusBar.tsx` — status-dot class with active pulse
+- `src/renderer/components/QuestionPanel.tsx` — radius variables
+- `src/renderer/components/DocumentDetail.tsx` — radius variables
+- `src/renderer/components/ImportPanel.tsx` — radius variables
+- `feature_list.json` — added ui-polish feature
+- `session-handoff.md` — updated with UI polish entry
+- `agent-progress.md` — this entry
+
+### Verification
+
+- `npm run check` — 0 TypeScript errors
+- `npm test` — 204/204 pass (24 files)
+- `bash init.sh` — All 5 checks pass
+- Cleanup scanner — CLEAN
+
 ## Session: 2026-06-25
 
 ### Task: Fix Document Import Feature
@@ -2714,6 +2768,74 @@ UPDATED: session-handoff.md                                 — updated
 ### Feature Status
 
 - **Features Complete:** 54/54 (all complete)
+- **Features Remaining:** 0
+- **Build Health:** ✅ Green
+
+---
+
+## Entry 2026-07-06: Extended File Support (PDF, DOCX)
+
+**Feature:** extended-file-support  
+**Status:** ✅ PASS  
+**Duration:** ~20 minutes
+
+### What Was Implemented
+
+Extended document import and chat file upload to support .pdf and .docx formats (in addition to existing .txt and .md).
+
+**New Service (`src/services/file-extraction-service.ts`):**
+- `extractText(filePath)` — async text extraction based on file extension
+- `extractionFromBuffer(buffer, ext)` — for buffer-based extraction
+- `isSupportedFileType(ext)` type guard
+- PDF: Uses `pdf-parse` v2 (PDFParse class) for text extraction
+- DOCX: Uses `mammoth.extractRawText()` for conversion
+- TXT/MD: Direct UTF-8 read (unchanged)
+
+**Modified Services:**
+- `src/services/document-service.ts` — `importDocument()` now async, uses `extractText()` for binary format support
+- `src/main/ipc-handlers.ts` — Dialog filter extended to `['txt', 'md', 'pdf', 'docx']`; `app:read-file` uses `extractText()` for chat upload of PDF/DOCX
+- `src/renderer/components/ImportPanel.tsx` — Updated supported formats text
+
+**Dependencies:**
+- `pdf-parse@^2.4.5` — PDF text extraction
+- `mammoth@^1.9.0` — DOCX text extraction
+
+### Verification
+
+```
+npm run check:  0 TypeScript errors
+npm test:       204 passed (24 files)
+bash init.sh:   All 5 checks passed
+```
+
+### Files Modified
+
+```
+NEW:  src/services/file-extraction-service.ts — text extraction service (85 lines)
+UPDATED: src/services/document-service.ts     — async importDocument(), uses extractText()
+UPDATED: src/main/ipc-handlers.ts             — extended dialog filter, read-file uses extraction
+UPDATED: src/renderer/components/ImportPanel.tsx — updated supported formats text
+UPDATED: docs/PRODUCT.md                      — updated supported format lists
+UPDATED: docs/ARCHITECTURE.md                 — updated ImportPanel, doc import flow, services table
+UPDATED: feature_list.json                    — extended-file-support → pass
+UPDATED: test/metadata-extraction.test.ts     — async tests for new signature
+UPDATED: test/sqlite-workflow-demo.test.ts    — await importDocument()
+UPDATED: test/persistence.test.ts             — await importDocument()
+UPDATED: test/status-bar.test.ts              — async beforeAll, await importDocument()
+UPDATED: test/indexing-status-ui.test.ts      — async test, await importDocument()
+UPDATED: package.json                         — pdf-parse + mammoth deps
+```
+
+### Key Learnings
+
+1. **pdf-parse v2 API**: The v2 library uses a class-based `PDFParse` with `getText()` method, not a default function.
+2. **Binary file handling**: Existing `fs.readFileSync(path, 'utf-8')` would fail on PDF/DOCX — needed format-specific extraction.
+3. **Async import impact**: Making `importDocument()` async required updating 5 test files that called it synchronously.
+4. **File dialog extension**: Electron's `dialog.showOpenDialog` filter is purely UX — actual validation happens in the service layer via `isSupportedFileType().`
+
+### Feature Status
+
+- **Features Complete:** 55/55 (all complete)
 - **Features Remaining:** 0
 - **Build Health:** ✅ Green
 ```

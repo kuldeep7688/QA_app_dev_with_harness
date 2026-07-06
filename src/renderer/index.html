@@ -70,6 +70,12 @@
       --kb-sidebar-bg: #16213e;
       --conversation-card-bg: #1a1a3e;
       --app-nav-bg: #0a0a1a;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
     }
     [data-theme="light"] {
       --bg-app: #f0f2f5;
@@ -135,6 +141,12 @@
       --kb-sidebar-bg: #e8eaf0;
       --conversation-card-bg: #ffffff;
       --app-nav-bg: #ffffff;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -147,6 +159,22 @@
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes bubbleIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes modalOverlayIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes modalContentIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
     }
     code, pre { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace; }
 
@@ -207,6 +235,92 @@
     .send-btn { background: var(--accent); color: #fff; }
     .send-btn:disabled { opacity: 0.4; cursor: default; }
     .cancel-btn { background: var(--cancel-bg); color: var(--cancel-text); }
+
+    /* Interactive element transitions */
+    .nav-tab, .new-chat-btn, .send-btn, .cancel-btn, .tool-toggle,
+    .session-actions button, .app-header-right button,
+    .chat-input-row textarea, select {
+      transition: background 150ms var(--ease-out),
+                  color 150ms var(--ease-out),
+                  border-color 150ms var(--ease-out),
+                  transform 160ms var(--ease-out);
+    }
+
+    /* Button active (pressed) states */
+    .nav-tab:active, .new-chat-btn:active, .send-btn:active,
+    .cancel-btn:active, .tool-toggle:active,
+    .session-actions button:active,
+    .app-header-right button:active { transform: scale(0.97); }
+
+    /* Hover states (only on devices that support hover) */
+    @media (hover: hover) and (pointer: fine) {
+      .send-btn:hover { background: var(--accent-hover); }
+      .cancel-btn:hover { opacity: 0.85; background: var(--cancel-text); color: white; }
+      .tool-toggle:hover { background: var(--bg-hover); color: var(--text-bright); }
+      .app-header-right button:hover { background: var(--bg-hover); }
+      select:hover { border-color: var(--accent); }
+      .chat-input-row textarea:hover { border-color: var(--accent); }
+    }
+
+    /* Focus-visible ring for keyboard navigation */
+    button:focus-visible, input:focus-visible,
+    textarea:focus-visible, select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Message bubble entrance stagger */
+    .chat-message {
+      animation: bubbleIn 250ms var(--ease-out) both;
+    }
+    .chat-message:nth-child(1) { animation-delay: 0ms; }
+    .chat-message:nth-child(2) { animation-delay: 40ms; }
+    .chat-message:nth-child(3) { animation-delay: 80ms; }
+    .chat-message:nth-child(4) { animation-delay: 120ms; }
+    .chat-message:nth-child(5) { animation-delay: 160ms; }
+
+    /* Session item transitions */
+    .session-item {
+      transition: background 150ms var(--ease-out),
+                  border-left-color 150ms var(--ease-out);
+    }
+
+    /* QA entry stagger in ConversationHistory */
+    .qa-entry {
+      animation: bubbleIn 250ms var(--ease-out) both;
+    }
+    .qa-entry:nth-child(1) { animation-delay: 0ms; }
+    .qa-entry:nth-child(2) { animation-delay: 40ms; }
+    .qa-entry:nth-child(3) { animation-delay: 80ms; }
+    .qa-entry:nth-child(4) { animation-delay: 120ms; }
+    .qa-entry:nth-child(5) { animation-delay: 160ms; }
+
+    /* Streaming cursor polish */
+    .streaming-cursor {
+      animation: pulse 1s var(--ease-in-out) infinite !important;
+    }
+
+    /* Modal overlay & content animations */
+    .modal-overlay {
+      animation: modalOverlayIn 200ms var(--ease-out) both;
+    }
+    .modal-content {
+      animation: modalContentIn 200ms var(--ease-out) both;
+    }
+
+    /* Document list item transition */
+    .document-list-item {
+      transition: background 150ms var(--ease-out);
+    }
+
+    /* Status dot pulse for active states */
+    .status-dot {
+      transition: background 300ms var(--ease-out);
+    }
+    .status-dot.active {
+      animation: pulse 2s var(--ease-in-out) infinite;
+    }
+
   </style>
 </head>
 <body>

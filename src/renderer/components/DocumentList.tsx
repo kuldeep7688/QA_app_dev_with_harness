@@ -25,12 +25,12 @@ export function DocumentList({ documents, onSelect, selectedId }: Props) {
         <div
           key={doc.id}
           onClick={() => onSelect(doc)}
+          className="document-list-item"
           style={{
             padding: '10px 16px',
             cursor: 'pointer',
             borderBottom: '1px solid var(--border-light)',
             background: selectedId === doc.id ? 'var(--accent-secondary)' : 'transparent',
-            transition: 'background 0.15s',
           }}
         >
           <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{doc.title}</div>

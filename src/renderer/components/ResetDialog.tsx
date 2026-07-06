@@ -13,6 +13,7 @@ export function ResetDialog({ onConfirm, onCancel }: ResetDialogProps) {
   return (
     <div
       onClick={handleOverlayClick}
+      className="modal-overlay"
       style={{
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
@@ -23,10 +24,10 @@ export function ResetDialog({ onConfirm, onCancel }: ResetDialogProps) {
         zIndex: 1000,
       }}
     >
-      <div style={{
+      <div className="modal-content" style={{
         background: 'var(--bg-app)',
         border: '1px solid var(--border-light)',
-        borderRadius: '8px',
+        borderRadius: 'var(--radius-lg)',
         padding: '24px',
         maxWidth: '400px',
         width: '90%',
@@ -47,7 +48,7 @@ export function ResetDialog({ onConfirm, onCancel }: ResetDialogProps) {
               background: 'var(--accent-secondary)',
               color: 'var(--text-primary)',
               border: '1px solid var(--accent-secondary-hover)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '13px',
             }}
@@ -61,7 +62,7 @@ export function ResetDialog({ onConfirm, onCancel }: ResetDialogProps) {
               background: 'var(--danger)',
               color: '#fff',
               border: '1px solid var(--danger-hover)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '13px',
             }}

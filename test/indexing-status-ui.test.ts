@@ -39,7 +39,7 @@ describe('Indexing Status UI', () => {
     expect(status.indexStatus).toBe('idle');
   });
 
-  it('imports 3 documents without indexing', () => {
+  it('imports 3 documents without indexing', async () => {
     const testDoc1 = path.join(TEST_DIR, 'test-doc-1.txt');
     const testDoc2 = path.join(TEST_DIR, 'test-doc-2.txt');
     const testDoc3 = path.join(TEST_DIR, 'test-doc-3.txt');
@@ -48,9 +48,9 @@ describe('Indexing Status UI', () => {
     fs.writeFileSync(testDoc2, 'This is test document 2. Different content here.\n\nMore text.');
     fs.writeFileSync(testDoc3, 'This is test document 3. Yet another document.\n\nFinal paragraph.');
 
-    documentService.importDocument(testDoc1);
-    documentService.importDocument(testDoc2);
-    documentService.importDocument(testDoc3);
+    await documentService.importDocument(testDoc1);
+    await documentService.importDocument(testDoc2);
+    await documentService.importDocument(testDoc3);
 
     const status = indexingService.getStatus();
     expect(status.documentsLoaded).toBe(3);

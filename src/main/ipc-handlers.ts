@@ -1,5 +1,4 @@
 import { IpcMain, dialog, BrowserWindow } from 'electron';
-import { readFileSync } from 'node:fs';
 import { DocumentService } from '../services/document-service';
 import { IndexingService } from '../services/indexing-service';
 import { QaService } from '../services/qa-service';
@@ -7,6 +6,7 @@ import { PersistenceService } from '../services/persistence-service';
 import { SettingsService } from '../services/settings-service';
 import { SessionService } from '../services/session-service';
 import { ChatService } from '../services/chat-service';
+import { extractText } from '../services/file-extraction-service';
 import { IPC_CHANNELS } from '../shared/types';
 import { logger } from '../services/logger';
 import { clearAllData } from '../services/db';
@@ -174,7 +174,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
       const result = await dialog.showOpenDialog(window, {
         properties: ['openFile'],
         filters: [
-          { name: 'Documents', extensions: ['txt', 'md'] },
+          { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'docx'] },
           { name: 'All Files', extensions: ['*'] }
         ]
       });
@@ -262,9 +262,8 @@ export function registerIpcHandlers(ipcMain: IpcMain, services: Services) {
   ipcMain.handle(IPC_CHANNELS.READ_FILE, async (_event, filePath: string) => {
     log.info('IPC: app:read-file', { filePath });
     try {
-      const content = readFileSync(filePath, 'utf-8');
+      const { content, ext } = await extractText(filePath);
       const name = filePath.split(/[\\/]/).pop() || 'file';
-      const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() : 'txt';
       return { name, content, type: ext || 'txt' };
     } catch (error) {
       log.error('Failed to read file', { filePath, error: String(error) });

@@ -315,7 +315,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
               background: confirmClear ? 'var(--danger-bg)' : 'var(--bg-hover)',
               color: confirmClear ? 'var(--danger-text)' : 'var(--badge-text)',
               border: `1px solid ${confirmClear ? 'var(--danger)' : 'var(--border)'}`,
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '12px',
             }}
@@ -347,7 +347,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
           {history.map((entry, idx) => {
             const cs = confidenceStyle(entry.response.confidence);
             return (
-              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div key={idx} className="qa-entry" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {/* User question bubble — right-aligned, purple */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <div
@@ -424,7 +424,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                           background: feedbackGiven.has(entry.response.timestamp) ? 'var(--success-bg)' : 'var(--bg-hover)',
                           color: feedbackGiven.has(entry.response.timestamp) ? 'var(--success-text)' : 'var(--badge-text)',
                           border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? 'var(--success-text)' : 'var(--border)'}`,
-                          borderRadius: '4px',
+                          borderRadius: 'var(--radius-sm)',
                           cursor: feedbackGiven.has(entry.response.timestamp) ? 'default' : 'pointer',
                           padding: '3px 10px',
                           fontSize: '12px',
@@ -444,7 +444,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                           background: feedbackGiven.has(entry.response.timestamp) ? 'var(--danger-bg)' : 'var(--bg-hover)',
                           color: feedbackGiven.has(entry.response.timestamp) ? 'var(--danger-text)' : 'var(--badge-text)',
                           border: `1px solid ${feedbackGiven.has(entry.response.timestamp) ? 'var(--danger)' : 'var(--border)'}`,
-                          borderRadius: '4px',
+                          borderRadius: 'var(--radius-sm)',
                           cursor: feedbackGiven.has(entry.response.timestamp) ? 'default' : 'pointer',
                           padding: '3px 10px',
                           fontSize: '12px',
@@ -497,7 +497,7 @@ export function ConversationHistory({ history, onClearHistory, onSubmitFeedback,
                   <div>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{streamingEntry.partialAnswer}</ReactMarkdown>
                     {!streamingEntry.hasError && !streamingEntry.cancelled && streamingEntry.partialAnswer && (
-                      <span style={{ animation: 'blink 1s step-end infinite', marginLeft: '2px' }}>▊</span>
+                      <span className="streaming-cursor" style={{ marginLeft: '2px' }}>▊</span>
                     )}
                     {streamingEntry.cancelled && !streamingEntry.partialAnswer && (
                       <span style={{ color: 'var(--danger-text)' }}>[cancelled]</span>

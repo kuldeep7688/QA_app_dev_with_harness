@@ -16,7 +16,7 @@ describe('Status Bar Indexing Status', () => {
   let indexing: IndexingService;
   let docIds: string[];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     fs.mkdirSync(tempRoot, { recursive: true });
     db = initDatabase(tempRoot);
     runMigrations(db);
@@ -32,9 +32,9 @@ describe('Status Bar Indexing Status', () => {
     fs.writeFileSync(doc2Path, 'Document 2\n\nSecond sample document with text format.\n\nAlso has multiple paragraphs for chunk generation.', 'utf-8');
     fs.writeFileSync(doc3Path, '# Document 3\n\nThird sample document.\n\nMore content for testing status transitions.', 'utf-8');
 
-    const d1 = documents.importDocument(doc1Path);
-    const d2 = documents.importDocument(doc2Path);
-    const d3 = documents.importDocument(doc3Path);
+    const d1 = await documents.importDocument(doc1Path);
+    const d2 = await documents.importDocument(doc2Path);
+    const d3 = await documents.importDocument(doc3Path);
     docIds = [d1.id, d2.id, d3.id];
   });
 

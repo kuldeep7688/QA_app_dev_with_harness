@@ -54,7 +54,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     background: 'var(--bg-input)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border-light)',
-    borderRadius: '4px',
+    borderRadius: 'var(--radius-sm)',
     fontSize: '13px',
     outline: 'none',
     boxSizing: 'border-box',
@@ -71,6 +71,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   return (
     <div
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="modal-overlay"
       style={{
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
@@ -81,10 +82,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         zIndex: 1000,
       }}
     >
-      <div style={{
+      <div className="modal-content" style={{
         background: 'var(--bg-app)',
         border: '1px solid var(--border-light)',
-        borderRadius: '8px',
+        borderRadius: 'var(--radius-lg)',
         padding: '24px',
         maxWidth: '420px',
         width: '90%',
@@ -235,7 +236,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               background: 'var(--accent-secondary)',
               color: 'var(--text-primary)',
               border: '1px solid var(--accent-secondary-hover)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '13px',
             }}
@@ -250,7 +251,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               background: saving ? 'var(--bg-hover)' : 'var(--accent)',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: saving ? 'not-allowed' : 'pointer',
               fontSize: '13px',
             }}

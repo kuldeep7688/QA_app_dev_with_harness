@@ -261,7 +261,7 @@ export function App() {
               background: 'transparent',
               color: 'var(--text-muted)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
               fontSize: '16px',
               lineHeight: '1',
@@ -277,7 +277,7 @@ export function App() {
                 background: showHistory ? 'var(--accent)' : 'var(--accent-secondary)',
                 color: 'var(--text-primary)',
                 border: `1px solid ${showHistory ? 'var(--accent-hover)' : 'var(--accent-secondary-hover)'}`,
-                borderRadius: '4px',
+                borderRadius: 'var(--radius-md)',
                 cursor: 'pointer',
                 fontSize: '13px',
               }}
@@ -292,7 +292,7 @@ export function App() {
               background: showSettings ? 'var(--accent)' : 'var(--accent-secondary)',
               color: 'var(--text-primary)',
               border: '1px solid var(--accent-secondary-hover)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
               fontSize: '13px',
             }}
@@ -306,7 +306,7 @@ export function App() {
               background: 'var(--danger)',
               color: '#fff',
               border: '1px solid var(--danger-hover)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
               fontSize: '13px',
             }}
@@ -320,7 +320,7 @@ export function App() {
               background: 'var(--accent-secondary)',
               color: 'var(--text-primary)',
               border: '1px solid var(--accent-secondary-hover)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
               fontSize: '13px',
             }}
@@ -373,7 +373,7 @@ export function App() {
                   background: 'var(--accent)',
                   color: '#fff',
                   border: 'none',
-                  borderRadius: '3px',
+                  borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer',
                   fontSize: '12px',
                 }}

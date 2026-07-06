@@ -1,6 +1,22 @@
 # Session Handoff
 
-## Current State (2026-07-03)
+## Current State (2026-07-06)
+
+### Recently Completed (2026-07-06)
+
+**Extended File Support (PDF, DOCX)**
+- Created `src/services/file-extraction-service.ts` with `extractText()` and `extractionFromBuffer()` supporting .txt/.md/.pdf/.docx
+- PDF: uses `pdf-parse` v2 (PDFParse class), DOCX: uses `mammoth.extractRawText()`
+- `src/services/document-service.ts` — `importDocument()` now async, uses extraction service for binary formats
+- `src/main/ipc-handlers.ts` — dialog filter extended to `['txt', 'md', 'pdf', 'docx']`, `app:read-file` uses extraction
+- `src/renderer/components/ImportPanel.tsx` — updated supported formats text
+- Updated `docs/PRODUCT.md` and `docs/ARCHITECTURE.md` with new formats
+- Fixed 5 test files for async `importDocument()` signature change
+- `npm run check`: 0 TypeScript errors
+- `npm test`: 204/204 passed (24 files)
+- `bash init.sh`: All 5 checks passed
+- Cleanup scanner: CLEAN
+- feature_list.json → extended-file-support → "pass"
 
 ### Recently Completed (2026-07-03)
 
@@ -176,13 +192,32 @@
 - `test/sqlite-workflow-demo.test.ts` — NEW: end-to-end workflow demonstration
 - `feature_list.json` — added sqlite-database, schema-migrations, json-to-sqlite-migration features with "pass" status
 
+### Recently Completed (2026-07-06 — UI Polish)
+
+**UI Polish — Micro-interactions & Entrance Animations**
+- Added CSS custom properties: `--ease-out` (cubic-bezier(0.23, 1, 0.32, 1)), `--ease-in-out` (cubic-bezier(0.77, 0, 0.175, 1)), `--radius-sm/md/lg/xl` (4/6/8/12px)
+- Added `:active { transform: scale(0.97) }` on all button types (nav-tab, send-btn, cancel-btn, tool-toggle, session actions, header buttons)
+- Added 150ms `--ease-out` transitions on all interactive elements (background, color, border-color, transform)
+- Added hover transitions with `@media (hover: hover) and (pointer: fine)` guard for touch-device safety
+- Added `:focus-visible` outline ring (2px solid accent) on all form elements for keyboard navigation
+- Added `@keyframes bubbleIn` for chat message entrance (opacity 0→1, translateY 8px→0, 250ms ease-out, staggered 40ms)
+- Added modal entrance animations: overlay fades in, content scales from 0.95 with opacity
+- Added `.qa-entry` stagger animation for ConversationHistory bubbles
+- Replaced blinking streaming cursor with smoother `pulse` animation (opacity 0.3↔1, ease-in-out)
+- Added status-dot pulsing animation during active index states
+- Added session-item active border-left transition
+- Added document-list-item background transition via CSS class
+- Standardized all inline `borderRadius: '4px'` → `var(--radius-md)`, `'3px'` → `var(--radius-sm)`, `'6px'` → `var(--radius-md)`, `'8px'` → `var(--radius-lg)` across 11 component files
+- No new dependencies, no behavioral changes, zero TypeScript errors, all 204 tests pass
+
 ### Build Status
 
 ```
 ✅ npm run check  (TypeScript 0 errors)
-✅ npm run build  (Vite 34 modules, 161 kB)
-✅ test/fts5-bm25.test.ts (17/17 PASS)
-✅ test/persistence.test.ts (20/20 PASS)
+✅ npm run build  (Vite 290 modules)
+✅ 204/204 tests pass (24 files)
+✅ bash init.sh — All 5 checks passed
+✅ Cleanup scanner — CLEAN
 ```
 
 ### Architecture Notes
@@ -457,12 +492,12 @@ Implementation plan: `docs/superpowers/plans/2026-07-03-chat-pivot.md` (12 tasks
 - Reset clears sessions + chat_messages
 
 ### Feature Status
-53/53 features complete. All features passing.
+55/55 features complete. All features passing.
 
 1. Read `AGENTS.md` for project conventions and startup rules
 2. Run `npm run check` to verify build health (should show 0 errors)
 3. Run `bash init.sh` for full verification (should show "Init complete. All checks passed.")
-4. Read `feature_list.json` to see current feature status (all 53 passing)
+4. Read `feature_list.json` to see current feature status (all 55 passing)
 5. Next: No remaining features — project complete for feature scope
 6. Testing notes:
    - Use `npm test` to run all tests (handles better-sqlite3 rebuild)

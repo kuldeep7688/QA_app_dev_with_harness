@@ -32,7 +32,7 @@ export function StatusBar({ status }: Props) {
       color: 'var(--text-muted)',
     }}>
       <span>
-        <span style={{
+        <span className={`status-dot ${status.indexStatus === 'indexing' ? 'active' : ''}`} style={{
           display: 'inline-block',
           width: '8px',
           height: '8px',
@@ -43,7 +43,7 @@ export function StatusBar({ status }: Props) {
         Index: {status.indexStatus}
       </span>
       <span>
-        <span style={{
+        <span className="status-dot" style={{
           display: 'inline-block',
           width: '8px',
           height: '8px',

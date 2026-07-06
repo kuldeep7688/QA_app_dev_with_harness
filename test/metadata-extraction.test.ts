@@ -23,7 +23,7 @@ describe('Metadata Extraction', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('should extract metadata from a .txt document on import', () => {
+  it('should extract metadata from a .txt document on import', async () => {
     const testContent = `This is a test document.
 It has multiple lines.
 And several words to count.
@@ -38,7 +38,7 @@ Each line should be counted.`;
     runMigrations(db);
     const persistence = new PersistenceService(dataDir1);
     const documentService = new DocumentService(persistence, db);
-    const doc = documentService.importDocument(testFilePath);
+    const doc = await documentService.importDocument(testFilePath);
 
     const expectedWordCount = testContent.trim().split(/\s+/).filter(w => w.length > 0).length;
     const expectedLineCount = testContent.split('\n').length;
@@ -53,7 +53,7 @@ Each line should be counted.`;
     closeDatabase();
   });
 
-  it('should extract file type from a .md document on import', () => {
+  it('should extract file type from a .md document on import', async () => {
     const mdContent = `# Markdown Test
 
 This is a **markdown** document.
@@ -68,7 +68,7 @@ This is a **markdown** document.
     const mdFilePath = path.join(tempDir, 'test-markdown.md');
     fs.writeFileSync(mdFilePath, mdContent, 'utf-8');
 
-    const mdDoc = documentService.importDocument(mdFilePath);
+    const mdDoc = await documentService.importDocument(mdFilePath);
     expect(mdDoc.fileType).toBe('md');
 
     closeDatabase();
