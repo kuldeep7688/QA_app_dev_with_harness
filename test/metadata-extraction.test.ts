@@ -1,102 +1,76 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { initDatabase, closeDatabase } from '../src/services/db';
+import { runMigrations } from '../src/services/migrations/runner';
 import { DocumentService } from '../src/services/document-service';
 import { PersistenceService } from '../src/services/persistence-service';
 
-/**
- * Integration test for metadata extraction feature.
- * Verifies that word count, line count, and file type are extracted on import.
- */
+describe('Metadata Extraction', () => {
+  const tempDir = path.join(os.tmpdir(), 'kb-metadata-test-' + Date.now());
 
-// Create a temporary test environment
-const tempDir = path.join(os.tmpdir(), 'kb-metadata-test-' + Date.now());
-fs.mkdirSync(tempDir, { recursive: true });
+  const dataDir1 = path.join(tempDir, 'data1');
+  const dataDir2 = path.join(tempDir, 'data2');
 
-// Create a test document
-const testContent = `This is a test document.
+  beforeAll(() => {
+    fs.mkdirSync(dataDir1, { recursive: true });
+    fs.mkdirSync(dataDir2, { recursive: true });
+  });
+
+  afterAll(() => {
+    try { closeDatabase(); } catch { /* already closed */ }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('should extract metadata from a .txt document on import', async () => {
+    const testContent = `This is a test document.
 It has multiple lines.
 And several words to count.
 
 This paragraph has more content.
 Each line should be counted.`;
 
-const testFilePath = path.join(tempDir, 'test-document.txt');
-fs.writeFileSync(testFilePath, testContent, 'utf-8');
+    const testFilePath = path.join(tempDir, 'test-document.txt');
+    fs.writeFileSync(testFilePath, testContent, 'utf-8');
 
-// Initialize services
-const persistence = new PersistenceService(path.join(tempDir, 'data'));
-const documentService = new DocumentService(persistence);
+    const db = initDatabase(dataDir1);
+    runMigrations(db);
+    const persistence = new PersistenceService(dataDir1);
+    const documentService = new DocumentService(persistence, db);
+    const doc = await documentService.importDocument(testFilePath);
 
-// Import the document
-console.log('Importing test document...');
-const doc = documentService.importDocument(testFilePath);
+    const expectedWordCount = testContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const expectedLineCount = testContent.split('\n').length;
 
-// Verify metadata extraction
-console.log('\n=== Metadata Extraction Test Results ===');
-console.log(`Document ID: ${doc.id}`);
-console.log(`Title: ${doc.title}`);
-console.log(`Filename: ${doc.filename}`);
-console.log(`File Type: ${doc.fileType}`);
-console.log(`Size: ${doc.size} bytes`);
-console.log(`Word Count: ${doc.wordCount}`);
-console.log(`Line Count: ${doc.lineCount}`);
-console.log(`Status: ${doc.status}`);
+    expect(doc.wordCount).toBe(expectedWordCount);
+    expect(doc.lineCount).toBe(expectedLineCount);
+    expect(doc.fileType).toBe('txt');
+    expect(doc.id).toBeDefined();
+    expect(doc.title).toBeDefined();
+    expect(doc.filename).toBe('test-document.txt');
 
-// Assertions
-const expectedWordCount = testContent.trim().split(/\s+/).filter(w => w.length > 0).length;
-const expectedLineCount = testContent.split('\n').length;
-const expectedFileType = 'txt';
+    closeDatabase();
+  });
 
-let passed = true;
-
-if (doc.wordCount !== expectedWordCount) {
-  console.error(`\n❌ FAIL: Word count mismatch. Expected ${expectedWordCount}, got ${doc.wordCount}`);
-  passed = false;
-} else {
-  console.log(`\n✅ PASS: Word count matches (${doc.wordCount})`);
-}
-
-if (doc.lineCount !== expectedLineCount) {
-  console.error(`❌ FAIL: Line count mismatch. Expected ${expectedLineCount}, got ${doc.lineCount}`);
-  passed = false;
-} else {
-  console.log(`✅ PASS: Line count matches (${doc.lineCount})`);
-}
-
-if (doc.fileType !== expectedFileType) {
-  console.error(`❌ FAIL: File type mismatch. Expected ${expectedFileType}, got ${doc.fileType}`);
-  passed = false;
-} else {
-  console.log(`✅ PASS: File type matches (${doc.fileType})`);
-}
-
-// Test with .md file
-const mdContent = `# Markdown Test
+  it('should extract file type from a .md document on import', async () => {
+    const mdContent = `# Markdown Test
 
 This is a **markdown** document.
 - Item 1
 - Item 2`;
 
-const mdFilePath = path.join(tempDir, 'test-markdown.md');
-fs.writeFileSync(mdFilePath, mdContent, 'utf-8');
+    const db = initDatabase(dataDir2);
+    runMigrations(db);
+    const persistence = new PersistenceService(dataDir2);
+    const documentService = new DocumentService(persistence, db);
 
-const mdDoc = documentService.importDocument(mdFilePath);
+    const mdFilePath = path.join(tempDir, 'test-markdown.md');
+    fs.writeFileSync(mdFilePath, mdContent, 'utf-8');
 
-if (mdDoc.fileType !== 'md') {
-  console.error(`\n❌ FAIL: Markdown file type mismatch. Expected 'md', got ${mdDoc.fileType}`);
-  passed = false;
-} else {
-  console.log(`✅ PASS: Markdown file type matches (${mdDoc.fileType})`);
-}
+    const mdDoc = await documentService.importDocument(mdFilePath);
+    expect(mdDoc.fileType).toBe('md');
 
-// Cleanup
-fs.rmSync(tempDir, { recursive: true, force: true });
-
-if (passed) {
-  console.log('\n🎉 All metadata extraction tests passed!\n');
-  process.exit(0);
-} else {
-  console.error('\n❌ Some tests failed.\n');
-  process.exit(1);
-}
+    closeDatabase();
+  });
+});

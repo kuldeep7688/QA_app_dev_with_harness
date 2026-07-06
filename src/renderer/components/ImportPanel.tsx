@@ -32,26 +32,26 @@ export function ImportPanel({ onImport }: Props) {
   return (
     <div style={{
       padding: '20px',
-      background: '#16213e',
-      borderRadius: '6px',
-      border: '1px dashed #0f3460',
+      background: 'var(--kb-sidebar-bg)',
+      borderRadius: 'var(--radius-md)',
+      border: '1px dashed var(--border-light)',
       textAlign: 'center',
-      color: '#888',
+      color: 'var(--text-muted)',
     }}>
       <div style={{ fontSize: '14px', marginBottom: '8px' }}>Import Documents</div>
       <div style={{ fontSize: '12px', marginBottom: '16px' }}>
         Click the button below to select a file to import.
         <br />
-        Supported: .txt, .md files
+        Supported: .txt, .md, .pdf, .docx files
       </div>
       <button
         onClick={handleSelectFile}
         style={{
           padding: '8px 16px',
-          background: '#533483',
+          background: 'var(--accent)',
           color: '#fff',
           border: 'none',
-          borderRadius: '4px',
+          borderRadius: 'var(--radius-sm)',
           cursor: 'pointer',
           fontSize: '13px',
         }}

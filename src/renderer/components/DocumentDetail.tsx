@@ -38,10 +38,10 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
 
   return (
     <div>
-      <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
         {document.title}
       </h2>
-      <div style={{ fontSize: '13px', color: '#888', marginBottom: '16px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
         <div>Filename: {document.filename}</div>
         <div>Imported: {new Date(document.importedAt).toLocaleString()}</div>
         <div>Size: {(document.size / 1024).toFixed(1)} KB</div>
@@ -58,10 +58,10 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
           disabled={loadingContent}
           style={{
             padding: '6px 12px',
-            background: '#0f3460',
-            color: '#e0e0e0',
-            border: '1px solid #1a1a4e',
-            borderRadius: '4px',
+            background: 'var(--accent-secondary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--accent-secondary-hover)',
+            borderRadius: 'var(--radius-sm)',
             cursor: loadingContent ? 'wait' : 'pointer',
             fontSize: '12px',
           }}
@@ -72,10 +72,10 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
           onClick={() => setShowChunks(!showChunks)}
           style={{
             padding: '6px 12px',
-            background: '#0f3460',
-            color: '#e0e0e0',
-            border: '1px solid #1a1a4e',
-            borderRadius: '4px',
+            background: 'var(--accent-secondary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--accent-secondary-hover)',
+            borderRadius: 'var(--radius-sm)',
             cursor: 'pointer',
             fontSize: '12px',
           }}
@@ -90,10 +90,10 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
             }}
             style={{
               padding: '6px 12px',
-              background: '#533483',
+              background: 'var(--accent)',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '12px',
             }}
@@ -106,10 +106,10 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
             onClick={() => onDelete(document.id)}
             style={{
               padding: '6px 12px',
-              background: '#8b2252',
+              background: 'var(--delete)',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontSize: '12px',
             }}
@@ -123,9 +123,9 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
       {showContent && content && (
         <div style={{
           padding: '16px',
-          background: '#1a1a3e',
-          borderRadius: '6px',
-          border: '1px solid #0f3460',
+          background: 'var(--conversation-card-bg)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-light)',
           fontSize: '13px',
           lineHeight: 1.6,
           whiteSpace: 'pre-wrap',
@@ -145,14 +145,14 @@ export function DocumentDetail({ document, onDelete, onIndexed }: Props) {
               style={{
                 padding: '10px',
                 marginBottom: '8px',
-                background: '#1a1a3e',
-                borderRadius: '4px',
-                borderLeft: '3px solid #533483',
+                background: 'var(--conversation-card-bg)',
+                borderRadius: 'var(--radius-sm)',
+                borderLeft: '3px solid var(--accent)',
                 fontSize: '13px',
                 lineHeight: 1.5,
               }}
             >
-              <div style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
                 Chunk {chunk.index} ({chunk.metadata.charCount} chars)
               </div>
               {chunk.content}

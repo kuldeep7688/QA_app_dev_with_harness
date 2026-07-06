@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -5,104 +6,98 @@ import { PersistenceService } from '../src/services/persistence-service';
 import { DocumentService } from '../src/services/document-service';
 import { IndexingService } from '../src/services/indexing-service';
 import { QaService } from '../src/services/qa-service';
+import { embed } from '../src/services/embedding-service';
+import { initDatabase, closeDatabase } from '../src/services/db';
+import { runMigrations } from '../src/services/migrations/runner';
 
-/**
- * Integration test: verify all data (documents, chunks, Q&A history, feedback)
- * persists across a simulated application restart (service re-instantiation
- * against the same data directory).
- */
+describe('Data Persistence Across Service Restart', () => {
+  const tempRoot = path.join(os.tmpdir(), 'kb-persistence-test-' + Date.now());
+  const dataDir = path.join(tempRoot, 'data');
 
-const tempRoot = path.join(os.tmpdir(), 'kb-persistence-test-' + Date.now());
-const dataDir = path.join(tempRoot, 'data');
-fs.mkdirSync(tempRoot, { recursive: true });
+  beforeAll(() => {
+    fs.mkdirSync(tempRoot, { recursive: true });
+    const srcPath = path.join(tempRoot, 'persistence-sample.md');
+    const srcContent = `# Persistence Sample\n\nThis document is used to verify that the knowledge base correctly persists imported documents, indexed chunks, Q&A history, and feedback across application restarts.\n\nIt contains multiple paragraphs so the indexing service can produce at least one chunk and the Q&A service can retrieve a citation when asked about persistence and design.\n\nThe second paragraph mentions architecture and design so the keyword retrieval path is exercised.`;
+    fs.writeFileSync(srcPath, srcContent, 'utf-8');
+  });
 
-// Create source document on disk
-const srcPath = path.join(tempRoot, 'persistence-sample.md');
-const srcContent = `# Persistence Sample\n\nThis document is used to verify that the knowledge base correctly persists imported documents, indexed chunks, Q&A history, and feedback across application restarts.\n\nIt contains multiple paragraphs so the indexing service can produce at least one chunk and the Q&A service can retrieve a citation when asked about persistence and design.\n\nThe second paragraph mentions architecture and design so the keyword retrieval path is exercised.`;
-fs.writeFileSync(srcPath, srcContent, 'utf-8');
+  afterAll(() => {
+    try { closeDatabase(); } catch { /* already closed */ }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
 
-let failed = 0;
-function check(label: string, cond: boolean, detail?: string) {
-  if (cond) {
-    console.log(`PASS: ${label}`);
-  } else {
-    console.error(`FAIL: ${label}${detail ? ' -- ' + detail : ''}`);
-    failed++;
-  }
-}
-
-async function run() {
-  // --- Session 1: write data ---
-  console.log('=== Session 1: writing data ===');
-  {
+  it('Session 1: writes data (document, chunks, Q&A, feedback)', async () => {
     const persistence = new PersistenceService(dataDir);
-    const documents = new DocumentService(persistence);
-    const indexing = new IndexingService(persistence);
-    const qa = new QaService(persistence, indexing);
+    const db = initDatabase(dataDir);
+    runMigrations(db);
 
-    const doc = documents.importDocument(srcPath);
-    check('Session 1: document imported', !!doc.id);
+    const documents = new DocumentService(persistence, db);
+    const indexing = new IndexingService(persistence, db);
+    const qa = new QaService(db, embed);
+
+    const srcPath = path.join(tempRoot, 'persistence-sample.md');
+    const doc = await documents.importDocument(srcPath);
+    expect(doc.id).toBeDefined();
 
     await indexing.startIndexing(doc.id);
     const chunks = indexing.getChunksForDocument(doc.id);
-    check('Session 1: chunks created', chunks.length > 0, `got ${chunks.length}`);
+    expect(chunks.length).toBeGreaterThan(0);
 
     const resp = await qa.ask('What does the document say about architecture and design?');
-    check('Session 1: Q&A returned citations', resp.citations.length > 0);
+    expect(resp.citations.length).toBeGreaterThan(0);
 
     qa.submitFeedback(resp.timestamp, 'What does the document say about architecture and design?', 'positive');
     const fb = qa.getFeedback();
-    check('Session 1: feedback persisted', fb.length === 1);
-  }
+    expect(fb.length).toBe(1);
 
-  // Verify on-disk files exist
-  check('On-disk: documents-meta.json', fs.existsSync(path.join(dataDir, 'documents-meta.json')));
-  check('On-disk: qa-history.json', fs.existsSync(path.join(dataDir, 'qa-history.json')));
-  check('On-disk: feedback.json', fs.existsSync(path.join(dataDir, 'feedback.json')));
-  check('On-disk: index-meta.json', fs.existsSync(path.join(dataDir, 'index-meta.json')));
-  check('On-disk: chunks/ has files', fs.readdirSync(path.join(dataDir, 'chunks')).length > 0);
-  check('On-disk: content/ has files', fs.readdirSync(path.join(dataDir, 'content')).length > 0);
+    // Verify on-disk files
+    expect(fs.existsSync(path.join(dataDir, 'index.db'))).toBe(true);
+    expect(fs.existsSync(path.join(dataDir, 'content')) && fs.readdirSync(path.join(dataDir, 'content')).length > 0).toBe(true);
+    expect(fs.existsSync(path.join(dataDir, 'documents')) && fs.readdirSync(path.join(dataDir, 'documents')).length > 0).toBe(true);
 
-  // --- Session 2: re-instantiate against same dataDir, verify everything loads ---
-  console.log('\n=== Session 2: simulated restart ===');
-  {
+    // Save docId for next test
+    (globalThis as any).__persistenceDocId = doc.id;
+    (globalThis as any).__persistenceTimestamp = resp.timestamp;
+
+    closeDatabase();
+  });
+
+  it('Session 2: re-instantiates services and verifies data persists', async () => {
     const persistence = new PersistenceService(dataDir);
-    const documents = new DocumentService(persistence);
-    const indexing = new IndexingService(persistence);
-    const qa = new QaService(persistence, indexing);
+    const db = initDatabase(dataDir);
+    runMigrations(db);
+
+    const documents = new DocumentService(persistence, db);
+    const indexing = new IndexingService(persistence, db);
+    const qa = new QaService(db, embed);
+
+    const docId = (globalThis as any).__persistenceDocId;
 
     const docs = documents.listDocuments();
-    check('Session 2: documents loaded', docs.length === 1, `got ${docs.length}`);
-    check('Session 2: document status preserved (indexed)', docs[0]?.status === 'indexed', `status=${docs[0]?.status}`);
-    check('Session 2: document metadata preserved (wordCount)', typeof docs[0]?.wordCount === 'number' && (docs[0]?.wordCount ?? 0) > 0);
+    expect(docs.length).toBe(1);
+    expect(docs[0]?.id).toBe(docId);
+    expect(docs[0]?.status).toBe('indexed');
+    expect(typeof docs[0]?.wordCount).toBe('number');
+    expect((docs[0]?.wordCount ?? 0)).toBeGreaterThan(0);
 
     const chunks = indexing.getAllChunks();
-    check('Session 2: chunks loaded', chunks.length > 0, `got ${chunks.length}`);
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.every(c => c.documentId === docId)).toBe(true);
 
     const status = indexing.getStatus();
-    check('Session 2: index status ready', status.indexStatus === 'ready' && status.indexedCount === 1);
+    expect(status.indexStatus).toBe('ready');
+    expect(status.indexedCount).toBe(1);
 
     const history = qa.getHistory();
-    check('Session 2: Q&A history loaded', history.length === 1, `got ${history.length}`);
-    check('Session 2: history entry has citations', (history[0]?.response.citations.length ?? 0) > 0);
+    expect(history.length).toBe(1);
+    expect((history[0]?.response.citations.length ?? 0)).toBeGreaterThan(0);
+    expect(history[0]?.question).toContain('architecture');
 
     const fb = qa.getFeedback();
-    check('Session 2: feedback loaded', fb.length === 1 && fb[0]?.rating === 'positive');
-  }
+    expect(fb.length).toBe(1);
+    expect(fb[0]?.rating).toBe('positive');
+    expect(fb[0]?.responseTimestamp).toBe((globalThis as any).__persistenceTimestamp);
 
-  // Cleanup
-  fs.rmSync(tempRoot, { recursive: true, force: true });
-
-  if (failed === 0) {
-    console.log('\nAll persistence tests passed.');
-    process.exit(0);
-  } else {
-    console.error(`\n${failed} test(s) failed.`);
-    process.exit(1);
-  }
-}
-
-run().catch(err => {
-  console.error('Test crashed:', err);
-  process.exit(2);
+    closeDatabase();
+  });
 });

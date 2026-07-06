@@ -13,19 +13,26 @@ export function StatusBar({ status }: Props) {
   };
   const statusColor = statusColors[status.indexStatus];
 
+  const llmColors: Record<string, string> = {
+    healthy: '#5cb85c',
+    unhealthy: '#d9534f',
+    disabled: '#888',
+  };
+  const llmColor = llmColors[status.llmStatus ?? 'disabled'];
+
   return (
     <div style={{
       padding: '4px 20px',
-      background: '#0f1729',
-      borderTop: '1px solid #0f3460',
+      background: 'var(--bg-statusbar)',
+      borderTop: '1px solid var(--border-light)',
       display: 'flex',
       alignItems: 'center',
       gap: '16px',
       fontSize: '11px',
-      color: '#888',
+      color: 'var(--text-muted)',
     }}>
       <span>
-        <span style={{
+        <span className={`status-dot ${status.indexStatus === 'indexing' ? 'active' : ''}`} style={{
           display: 'inline-block',
           width: '8px',
           height: '8px',
@@ -34,6 +41,18 @@ export function StatusBar({ status }: Props) {
           marginRight: '6px',
         }} />
         Index: {status.indexStatus}
+      </span>
+      <span>
+        <span className="status-dot" style={{
+          display: 'inline-block',
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          background: llmColor,
+          marginRight: '6px',
+        }} />
+        LLM: {status.llmStatus ?? 'disabled'}
+        {status.llmModel && ` (${status.llmModel})`}
       </span>
       <span>Documents: {status.indexedCount} of {status.documentsLoaded} indexed</span>
       {status.lastActivity && (

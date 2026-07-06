@@ -33,7 +33,6 @@
 | File | Present | Quality | Notes |
 |------|---------|---------|-------|
 | AGENTS.md | Yes | Complete | Full startup rules, conventions, definition of done |
-| CLAUDE.md | Yes | Complete | Quick reference with all 14 IPC channels |
 | feature_list.json | Yes | Complete | 15 features, all pass with evidence |
 | init.sh | Yes | Complete | 5-step verification including harness files |
 | claude-progress.md | Yes | Complete | Session log with benchmark results |

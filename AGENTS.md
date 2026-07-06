@@ -13,12 +13,17 @@ Before writing any code, complete these steps in order:
 
 ## Project Context
 
-- Document import with validation
-- Text indexing with progress tracking
-- Grounded Q&A with citations
-- Conversation history with chat-style display
+- Chat-first AI assistant with session-based conversations
+- Session management (CRUD, auto-title, persistence via SQLite)
+- Tool-selectable chat messages (KB RAG, Web Search, File Upload)
+- Document import with validation and text indexing
+- Grounded Q&A with citations (via KB view)
+- LLM answer generation via NVIDIA NIM (streaming, markdown, cancellable)
 - Structured logging for runtime observability
+- Web search integration via Tavily API
+- File upload with text extraction for chat context
 - Feedback collection on Q&A responses
+- Theme toggle (dark/light with CSS custom properties)
 - Clean state reset for testing
 - Benchmark scripts for performance measurement
 - Cleanup scanner for detecting stale artifacts
@@ -48,7 +53,7 @@ When adding new features, update the relevant doc before writing code.
 
 - The ONLY bridge between main and renderer.
 - Uses `contextBridge.exposeInMainWorld` to expose typed APIs.
-- Exposes: documents, indexing, qa, feedback, app namespaces.
+- Exposes: documents, indexing, qa, feedback, app, llm, settings, llmSettings, sessions, chat namespaces.
 
 ### Renderer (`src/renderer/`)
 
@@ -105,6 +110,13 @@ When resuming work, read `session-handoff.md` for context from the previous sess
 - Benchmark results if applicable
 
 Update the `agent-progress.md` by appending a new entry with implementation details, learnings, and verification
+
+## Testing
+
+- **Always use `npm test`** to run all 204 tests across 24 test files. This handles the native module rebuild: `pretest` rebuilds `better-sqlite3` for Node.js, then vitest runs, then `posttest` rebuilds it back for Electron.
+- **Never run `npx vitest run` directly** — it skips the `pretest` hook, so test files fail with `NODE_MODULE_VERSION` mismatch (Node.js 127 vs Electron 146).
+- To run a single test file: `npx vitest run test/<file>.test.ts` — but only after running `npm rebuild better-sqlite3` first.
+- Vitest picks up all `*.test.ts` files under `test/` automatically.
 
 ## Clean State
 

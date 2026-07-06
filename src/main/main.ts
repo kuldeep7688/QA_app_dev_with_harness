@@ -5,7 +5,19 @@ import { DocumentService } from '../services/document-service';
 import { QaService } from '../services/qa-service';
 import { IndexingService } from '../services/indexing-service';
 import { PersistenceService } from '../services/persistence-service';
+import { SettingsService } from '../services/settings-service';
+import { SessionService } from '../services/session-service';
+import { ChatService } from '../services/chat-service';
+import { WebSearchService } from '../services/web-search-service';
+import { initDatabase } from '../services/db';
+import { runMigrations } from '../services/migrations/runner';
+import { LegacyImporter } from '../services/legacy-importer';
 import { logger } from '../services/logger';
+import { loadEnvConfig, isLLMEnabled, getEnvConfig } from '../services/env-config';
+import { embed } from '../services/embedding-service';
+import { hybridSearch } from '../services/retriever';
+import { NvidiaProvider } from '../services/providers/nvidia-provider';
+import type { LlmProvider } from '../services/providers/types';
 
 const log = logger.forService('Main');
 
@@ -66,17 +78,76 @@ function createWindow() {
 }
 
 function initializeServices() {
-  const dataDir = path.join(app.getPath('userData'), 'knowledge-base-data');
+  // Load environment config before any services initialize
+  loadEnvConfig();
+
+  const dataDir = app.isPackaged
+    ? path.join(app.getPath('userData'), 'knowledge-base-data')
+    : path.join(__dirname, '../../knowledge-base-data');
   const persistence = new PersistenceService(dataDir);
-  const documentService = new DocumentService(persistence);
-  const indexingService = new IndexingService(persistence);
-  const qaService = new QaService(persistence);
+  
+  // Initialize SQLite database
+  log.info('Initializing database', { dataDir });
+  const db = initDatabase(dataDir);
+  
+  // Run schema migrations
+  log.info('Running schema migrations');
+  runMigrations(db);
+  
+  // Check for legacy JSON import
+  const dbPath = path.join(dataDir, 'index.db');
+  if (LegacyImporter.shouldImport(dataDir, dbPath)) {
+    log.info('Legacy JSON files detected, running one-time import');
+    LegacyImporter.importLegacyData(db, dataDir);
+    log.info('Legacy import completed successfully');
+  }
+  
+  // Initialize settings service
+  const settingsService = new SettingsService(persistence);
+
+  // Initialize LLM provider if configured
+  let llmProvider: LlmProvider | null = null;
+  if (isLLMEnabled()) {
+    try {
+      llmProvider = new NvidiaProvider();
+      log.info('LLM provider initialized');
+    } catch (error) {
+      log.error('Failed to initialize LLM provider', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  // Initialize services with database instance
+  const documentService = new DocumentService(persistence, db);
+  const indexingService = new IndexingService(persistence, db);
+  const qaService = new QaService(db, embed, () => settingsService.get(), llmProvider, () => settingsService.getLlmSettings());
+  const sessionService = new SessionService(db);
+
+  const config = getEnvConfig();
+  const webSearchService = config.tavilyApiKey
+    ? new WebSearchService({ apiKey: config.tavilyApiKey })
+    : undefined;
+
+  const retrieverFn = (query: string) => hybridSearch(db, query, embed);
+  const chatService = new ChatService(
+    db,
+    llmProvider,
+    sessionService,
+    retrieverFn,
+    webSearchService,
+    settingsService.getLlmSettings()?.systemPrompt || undefined,
+  );
 
   registerIpcHandlers(ipcMain, {
     documentService,
     indexingService,
     qaService,
     persistenceService: persistence,
+    settingsService,
+    sessionService,
+    chatService,
+    llmProvider,
   });
 }
 

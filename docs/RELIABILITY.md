@@ -4,7 +4,7 @@
 
 ### Overview
 
-All services in the application emit structured JSON log entries. This enables runtime debugging, post-hoc analysis, and automated monitoring of application behavior.
+All services emit structured JSON log entries. This enables runtime debugging, post-hoc analysis, and automated monitoring of application behavior.
 
 ### Log Format
 
@@ -51,21 +51,63 @@ Every log entry is a single-line JSON object:
 - Single and batch indexing start
 - Per-document indexing progress
 - Batch completion with throughput metrics
+- Embedding generation timing and throughput
 - Content not found warnings
+
+**Retriever:**
+- Hybrid search start with query, mode, configuration (INFO)
+- BM25 result count, score range, timing (DEBUG)
+- Vector raw results count, top distance, embedding dim, embedding + search timing (DEBUG)
+- Vector results after vec_rowid mapping (DEBUG)
+- Missing vec_rowid mapping warnings (WARN)
+- Vector search failure fallback to BM25 (ERROR)
+- Empty query / no results (INFO/DEBUG)
+- Hybrid search completion with result count and total elapsed (INFO)
 
 **QaService:**
 - Question processing start
-- Answer generation with confidence and duration
+- Answer generation with confidence, duration, model, and token usage
 - Feedback submission
 - History clear
+- Token usage logged as `prompt p / completion c / total t`
+
+**ChatService:**
+- Chat message start with text length and tool configuration (INFO)
+- KB search results (citation count, durations)
+- Web search results (result count, duration)
+- File upload content length
+- LLM completion with duration and token usage (INFO)
+
+**SessionService:**
+- Session creation, rename, delete (INFO)
+- Session retrieval (DEBUG)
+
+**WebSearchService:**
+- Search query with result count and duration (INFO)
+- API errors classified and logged (ERROR)
+
+**LLM Providers:**
+- Health check results (INFO)
+- LLM errors classified and sanitised (ERROR — no API keys)
+- Streaming session start/end (DEBUG)
 
 **IPC Handlers:**
 - Every channel invocation (INFO for mutations, DEBUG for reads)
 - All registered channels at startup
 
+**SettingsService:**
+- Load settings from disk (DEBUG)
+- Save settings to disk (INFO)
+- Invalid value rejection (WARN)
+
+**db.ts:**
+- Database init with path, SQLite version, WAL state (INFO)
+- Vector extension load success/fallback (INFO/WARN/ERROR)
+- Migration runner start/completion (INFO)
+
 ### Configuring Log Level
 
-Set the `LOG_LEVEL` environment variable:
+Set the `LOG_LEVEL` environment variable (in the packaged app, set this before launching):
 ```bash
 LOG_LEVEL=INFO npm run dev  # Only INFO, WARN, ERROR
 LOG_LEVEL=WARN npm run dev  # Only WARN and ERROR
@@ -78,14 +120,14 @@ Default: `DEBUG` (all messages).
 
 ### Purpose
 
-Clean state management ensures that testing and benchmarking start from a known, empty state. This prevents accumulated data from affecting test results or causing unexpected behavior.
+Clean state management ensures that testing and benchmarking start from a known, empty state. This prevents accumulated data from affecting test results.
 
 ### Reset Mechanism
 
 The application provides a `RESET_DATA` IPC channel that:
 
-1. Removes the entire data directory (`knowledge-base-data/`)
-2. Recreates the directory structure
+1. Removes the entire data directory (`knowledge-base-data/` under dev or `app.getPath('userData')` when packaged)
+2. Recreates and initialises the directory structure
 3. Returns a success response
 4. The renderer clears all React state and refreshes
 
@@ -117,7 +159,7 @@ The `scripts/benchmark.sh` script measures application performance across key op
 |------|------------------|--------|
 | `import` | Document import throughput | 3 files in <1s |
 | `index` | Batch indexing speed | 14 chunks in <1s |
-| `query` | Q&A response latency | <500ms per question |
+| `query` | Q&A response latency (mock) | <500ms per question |
 | `verify` | Data integrity checks | 0 errors |
 
 ### Running Benchmarks
@@ -147,18 +189,18 @@ Output example:
 
 ### Overview
 
-The `scripts/cleanup-scanner.sh` script checks the data directory for stale or inconsistent artifacts.
+The `scripts/cleanup-scanner.sh` script checks the data directory for stale or inconsistent artifacts. This is especially useful after migration from legacy JSON storage.
 
 ### Checks Performed
 
 | Check | Description |
 |-------|-------------|
-| Orphaned content files | Content files without a matching document in metadata |
-| Dangling chunk files | Chunk files without a matching index entry |
-| Missing content files | Documents in metadata without a content file |
-| Inconsistent metadata | Documents marked as indexed without chunk files |
-| Empty data files | JSON files with empty arrays that should have data |
-| Stale Q&A history | History entries referencing deleted documents |
+| Orphaned content files | `content/*.txt` without a matching document in the SQLite `documents` table |
+| Missing content files | Documents in SQLite without a corresponding `content/<id>.txt` file |
+| Inconsistent indexed status | Documents with `status='indexed'` but no chunks in the `chunks` table |
+| DB integrity check | Runs `PRAGMA integrity_check` on `index.db` |
+| Orphaned chat messages | `chat_messages` referencing a deleted session (should not happen with FK CASCADE) |
+| Stale legacy backup | `legacy/` directory size — warns if migration artifacts exist from pre-SQLite era |
 
 ### Running the Scanner
 
@@ -170,9 +212,10 @@ Output example:
 ```
 === Cleanup Scanner ===
 [OK] No orphaned content files
-[OK] No dangling chunk files
-[OK] No missing content files
-[OK] All indexed documents have chunk files
-[OK] No stale Q&A references
+[OK] All documents have content files
+[OK] All indexed documents have chunks
+[OK] Database integrity: PASS
+[OK] No orphaned chat messages
+[OK] No legacy artifacts
 === Result: CLEAN (0 issues) ===
 ```

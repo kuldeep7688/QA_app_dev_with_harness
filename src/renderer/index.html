@@ -6,14 +6,321 @@
   <title>Knowledge Base</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root, [data-theme="dark"] {
+      --bg-app: #1a1a2e;
+      --bg-header: #0a0a1a;
+      --bg-sidebar: #111122;
+      --bg-sidebar-alt: #16213e;
+      --bg-card: #1a1a3e;
+      --bg-hover: #2a2a4e;
+      --bg-hover-subtle: #1a1a3e;
+      --bg-code: #0d0d1a;
+      --bg-statusbar: #0f1729;
+      --bg-input: #1a1a2e;
+      --bg-overlay: rgba(0,0,0,0.6);
+      --text-primary: #e0e0e0;
+      --text-secondary: #a0a0c0;
+      --text-muted: #8888aa;
+      --text-dim: #6666aa;
+      --text-bright: #c0c0e0;
+      --accent: #533483;
+      --accent-hover: #7044bb;
+      --accent-active: #7550b0;
+      --accent-secondary: #0f3460;
+      --accent-secondary-hover: #1a1a4e;
+      --border: #2a2a4e;
+      --border-light: #0f3460;
+      --border-card: #2a2a5e;
+      --danger: #8b0000;
+      --danger-hover: #a00000;
+      --danger-text: #ff9999;
+      --danger-bg: #4a2020;
+      --delete: #8b2252;
+      --delete-hover: #aa3366;
+      --chat-user-bg: #533483;
+      --chat-user-text: #e8e0ff;
+      --chat-assistant-bg: #1a1a2e;
+      --chat-assistant-text: #d0d0f0;
+      --chat-assistant-border: #2a2a5e;
+      --success-bg: #1a5928;
+      --success-text: #66ff99;
+      --warning-bg: #664d1a;
+      --warning-text: #ffcc66;
+      --info-bg: #1a2a4e;
+      --info-text: #88bbff;
+      --code-text: #ffcc88;
+      --quote-bg: #1a1a2a;
+      --quote-border: #533483;
+      --link: #88bbff;
+      --cancel-bg: #8b3030;
+      --cancel-text: #ffaaaa;
+      --session-hover: #1a1a3e;
+      --session-active-bg: #2a2a4e;
+      --session-active-border: #533483;
+      --toggle-bg: #1a1a3e;
+      --toggle-text: #8888aa;
+      --toggle-border: #2a2a4e;
+      --toggle-active-bg: #533483;
+      --toggle-active-text: #fff;
+      --toggle-active-border: #7550b0;
+      --badge-bg: #2a2a4e;
+      --badge-text: #8888cc;
+      --placeholder: #8888aa;
+      --accent-text-bg: #2a1a4e;
+      --kb-sidebar-bg: #16213e;
+      --conversation-card-bg: #1a1a3e;
+      --app-nav-bg: #0a0a1a;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+    }
+    [data-theme="light"] {
+      --bg-app: #f0f2f5;
+      --bg-header: #ffffff;
+      --bg-sidebar: #f4f4f9;
+      --bg-sidebar-alt: #e8eaf0;
+      --bg-card: #ffffff;
+      --bg-hover: #dddde8;
+      --bg-hover-subtle: #e8eaf0;
+      --bg-code: #f0f2f5;
+      --bg-statusbar: #e4e6eb;
+      --bg-input: #ffffff;
+      --bg-overlay: rgba(0,0,0,0.25);
+      --text-primary: #1a1a2e;
+      --text-secondary: #444466;
+      --text-muted: #7777aa;
+      --text-dim: #9999bb;
+      --text-bright: #222244;
+      --accent: #7044bb;
+      --accent-hover: #5a35a0;
+      --accent-active: #5a35a0;
+      --accent-secondary: #d0d4e8;
+      --accent-secondary-hover: #c0c4de;
+      --border: #d0d2de;
+      --border-light: #c8cce0;
+      --border-card: #d8daea;
+      --danger: #dc3545;
+      --danger-hover: #c82333;
+      --danger-text: #721c24;
+      --danger-bg: #f8d7da;
+      --delete: #dc3545;
+      --delete-hover: #c82333;
+      --chat-user-bg: #e8d0ff;
+      --chat-user-text: #2a1a4e;
+      --chat-assistant-bg: #ffffff;
+      --chat-assistant-text: #1a1a2e;
+      --chat-assistant-border: #d8daea;
+      --success-bg: #d4edda;
+      --success-text: #155724;
+      --warning-bg: #fff3cd;
+      --warning-text: #856404;
+      --info-bg: #d1ecf1;
+      --info-text: #0c5460;
+      --code-text: #8a6d3b;
+      --quote-bg: #f0f0f5;
+      --quote-border: #7044bb;
+      --link: #3366cc;
+      --cancel-bg: #f8d7da;
+      --cancel-text: #721c24;
+      --session-hover: #e8eaf0;
+      --session-active-bg: #dddde8;
+      --session-active-border: #7044bb;
+      --toggle-bg: #e8eaf0;
+      --toggle-text: #666688;
+      --toggle-border: #d0d2de;
+      --toggle-active-bg: #7044bb;
+      --toggle-active-text: #fff;
+      --toggle-active-border: #5a35a0;
+      --badge-bg: #e8eaf0;
+      --badge-text: #555577;
+      --placeholder: #9999bb;
+      --accent-text-bg: #f0e8ff;
+      --kb-sidebar-bg: #e8eaf0;
+      --conversation-card-bg: #ffffff;
+      --app-nav-bg: #ffffff;
+      --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #1a1a2e;
-      color: #e0e0e0;
+      background: var(--bg-app);
+      color: var(--text-primary);
       height: 100vh;
       overflow: hidden;
     }
     #root { height: 100vh; display: flex; flex-direction: column; }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes bubbleIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes modalOverlayIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes modalContentIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    code, pre { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace; }
+
+    /* App Navigation */
+    .app-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: var(--bg-header); border-bottom: 1px solid var(--border); }
+    .app-nav { display: flex; gap: 4px; }
+    .nav-tab { background: none; color: var(--text-muted); border: none; padding: 6px 16px; cursor: pointer; font-size: 14px; border-radius: 6px; }
+    .nav-tab.active { background: var(--bg-card); color: var(--text-bright); }
+    .nav-tab:hover { color: var(--text-primary); }
+    .app-header-right { display: flex; gap: 8px; align-items: center; }
+
+    /* Chat View */
+    .chat-view { display: flex; height: calc(100vh - 80px); }
+    .session-list { width: 240px; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+    .new-chat-btn { margin: 8px; padding: 8px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .new-chat-btn:hover { background: var(--accent-hover); }
+    .session-items { flex: 1; overflow-y: auto; }
+    .session-empty { padding: 16px; color: var(--text-dim); text-align: center; font-size: 13px; }
+    .session-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--bg-hover-subtle); }
+    .session-item:hover { background: var(--session-hover); }
+    .session-item.active { background: var(--session-active-bg); border-left: 3px solid var(--session-active-border); }
+    .session-title { display: block; color: var(--text-bright); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session-meta { display: block; color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+    .session-actions { display: none; gap: 4px; margin-top: 4px; }
+    .session-item:hover .session-actions { display: flex; }
+    .session-actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; font-size: 13px; }
+    .session-actions button:hover { color: var(--text-primary); }
+
+    .chat-main { flex: 1; display: flex; flex-direction: column; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; }
+    .chat-empty { text-align: center; color: var(--text-dim); margin-top: 40px; font-size: 14px; }
+    .chat-message { margin-bottom: 16px; display: flex; }
+    .chat-message.user { justify-content: flex-end; }
+    .chat-message.assistant { justify-content: flex-start; }
+    .message-bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+    .chat-message.user .message-bubble { background: var(--accent-text-bg); color: var(--chat-user-text); border-bottom-right-radius: 4px; }
+    .chat-message.assistant .message-bubble { background: var(--chat-assistant-bg); color: var(--chat-assistant-text); border-bottom-left-radius: 4px; }
+    .message-bubble.streaming { border: 1px solid var(--accent); }
+    .streaming-cursor { animation: blink 1s step-end infinite; color: var(--code-text); }
+    .message-citations { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .citation-chip { background: var(--badge-bg); color: var(--badge-text); padding: 3px 8px; border-radius: 4px; font-size: 11px; }
+    .message-web-results { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .web-source-link { color: var(--link); font-size: 12px; text-decoration: none; }
+    .web-source-link:hover { text-decoration: underline; }
+    .message-tokens { margin-top: 4px; color: var(--text-dim); font-size: 11px; }
+
+    .chat-input-container { border-top: 1px solid var(--border); padding: 8px 16px; background: var(--bg-code); }
+    .chat-input-files { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+    .file-chip { background: var(--bg-card); color: var(--badge-text); padding: 3px 8px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+    .file-chip button { background: none; border: none; color: var(--badge-text); cursor: pointer; font-size: 14px; }
+    .chat-input-tools { display: flex; gap: 6px; margin-bottom: 6px; }
+    .tool-toggle { background: var(--toggle-bg); color: var(--toggle-text); border: 1px solid var(--toggle-border); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .tool-toggle.active { background: var(--toggle-active-bg); color: var(--toggle-active-text); border-color: var(--toggle-active-border); }
+    .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .chat-input-row textarea { flex: 1; background: var(--bg-input); color: var(--text-bright); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 14px; resize: none; font-family: inherit; }
+    .chat-input-row textarea:disabled { opacity: 0.5; }
+    .send-btn, .cancel-btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+    .send-btn { background: var(--accent); color: #fff; }
+    .send-btn:disabled { opacity: 0.4; cursor: default; }
+    .cancel-btn { background: var(--cancel-bg); color: var(--cancel-text); }
+
+    /* Interactive element transitions */
+    .nav-tab, .new-chat-btn, .send-btn, .cancel-btn, .tool-toggle,
+    .session-actions button, .app-header-right button,
+    .chat-input-row textarea, select {
+      transition: background 150ms var(--ease-out),
+                  color 150ms var(--ease-out),
+                  border-color 150ms var(--ease-out),
+                  transform 160ms var(--ease-out);
+    }
+
+    /* Button active (pressed) states */
+    .nav-tab:active, .new-chat-btn:active, .send-btn:active,
+    .cancel-btn:active, .tool-toggle:active,
+    .session-actions button:active,
+    .app-header-right button:active { transform: scale(0.97); }
+
+    /* Hover states (only on devices that support hover) */
+    @media (hover: hover) and (pointer: fine) {
+      .send-btn:hover { background: var(--accent-hover); }
+      .cancel-btn:hover { opacity: 0.85; background: var(--cancel-text); color: white; }
+      .tool-toggle:hover { background: var(--bg-hover); color: var(--text-bright); }
+      .app-header-right button:hover { background: var(--bg-hover); }
+      select:hover { border-color: var(--accent); }
+      .chat-input-row textarea:hover { border-color: var(--accent); }
+    }
+
+    /* Focus-visible ring for keyboard navigation */
+    button:focus-visible, input:focus-visible,
+    textarea:focus-visible, select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Message bubble entrance stagger */
+    .chat-message {
+      animation: bubbleIn 250ms var(--ease-out) both;
+    }
+    .chat-message:nth-child(1) { animation-delay: 0ms; }
+    .chat-message:nth-child(2) { animation-delay: 40ms; }
+    .chat-message:nth-child(3) { animation-delay: 80ms; }
+    .chat-message:nth-child(4) { animation-delay: 120ms; }
+    .chat-message:nth-child(5) { animation-delay: 160ms; }
+
+    /* Session item transitions */
+    .session-item {
+      transition: background 150ms var(--ease-out),
+                  border-left-color 150ms var(--ease-out);
+    }
+
+    /* QA entry stagger in ConversationHistory */
+    .qa-entry {
+      animation: bubbleIn 250ms var(--ease-out) both;
+    }
+    .qa-entry:nth-child(1) { animation-delay: 0ms; }
+    .qa-entry:nth-child(2) { animation-delay: 40ms; }
+    .qa-entry:nth-child(3) { animation-delay: 80ms; }
+    .qa-entry:nth-child(4) { animation-delay: 120ms; }
+    .qa-entry:nth-child(5) { animation-delay: 160ms; }
+
+    /* Streaming cursor polish */
+    .streaming-cursor {
+      animation: pulse 1s var(--ease-in-out) infinite !important;
+    }
+
+    /* Modal overlay & content animations */
+    .modal-overlay {
+      animation: modalOverlayIn 200ms var(--ease-out) both;
+    }
+    .modal-content {
+      animation: modalContentIn 200ms var(--ease-out) both;
+    }
+
+    /* Document list item transition */
+    .document-list-item {
+      transition: background 150ms var(--ease-out);
+    }
+
+    /* Status dot pulse for active states */
+    .status-dot {
+      transition: background 300ms var(--ease-out);
+    }
+    .status-dot.active {
+      animation: pulse 2s var(--ease-in-out) infinite;
+    }
+
   </style>
 </head>
 <body>

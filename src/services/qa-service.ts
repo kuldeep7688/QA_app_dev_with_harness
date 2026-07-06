@@ -1,147 +1,247 @@
-import { QAResponse, QAHistory, Citation, FeedbackEntry } from '../shared/types';
-import { PersistenceService } from './persistence-service';
-import { IndexingService } from './indexing-service';
+import type Database from 'better-sqlite3';
+import { QAResponse, QAHistory, Citation, FeedbackEntry, RetrievalSettings, LlmSettings, TokenUsage } from '../shared/types';
 import { logger } from './logger';
+import { hybridSearch, debugSearch, DebugSearchResult } from './retriever';
+import { isVectorExtensionLoaded } from './db';
+import type { LlmProvider, ChatMessage, StreamChunk } from './providers/types';
 
 const log = logger.forService('QaService');
 
-const QA_HISTORY_FILE = 'qa-history.json';
-const FEEDBACK_FILE = 'feedback.json';
-
-/** Mock Q&A patterns keyed to document content keywords. */
-const MOCK_PATTERNS: Array<{
-  keywords: string[];
-  answer: string;
-  excerpt: string;
-}> = [
-  {
-    keywords: ['design', 'architecture', 'pattern'],
-    answer: 'The system uses a layered architecture with clear boundaries between the main process, preload scripts, and renderer. Each layer communicates through typed IPC channels, and the services layer handles business logic independently of the UI.',
-    excerpt: 'The system uses a layered architecture with clear boundaries',
-  },
-  {
-    keywords: ['import', 'document', 'file'],
-    answer: 'Documents are imported by copying the source file to the local data directory. The system extracts text content and creates metadata including title, filename, size, and import timestamp. After import, documents can be indexed for search.',
-    excerpt: 'Documents are imported by copying the source file',
-  },
-  {
-    keywords: ['index', 'chunk', 'search'],
-    answer: 'The indexing pipeline splits documents into chunks of approximately 500 characters at paragraph boundaries. Each chunk includes metadata like character count and word count. The index enables grounded Q&A with citations pointing to specific document sections.',
-    excerpt: 'The indexing pipeline splits documents into chunks',
-  },
-  {
-    keywords: ['retrieval', 'search', 'query'],
-    answer: 'Retrieval works by matching query keywords against indexed chunks. The system ranks chunks by keyword overlap and returns the most relevant excerpts as citations alongside the generated answer.',
-    excerpt: 'Retrieval works by matching query keywords against indexed chunks',
-  },
-  {
-    keywords: ['meeting', 'notes', 'summary'],
-    answer: 'The meeting summary indicates that the team discussed implementing a retrieval-augmented generation pipeline. Key decisions included using local chunk storage and citation-based verification to ensure answer accuracy.',
-    excerpt: 'The team discussed implementing a retrieval-augmented generation pipeline',
-  },
-];
+const DEFAULT_SYSTEM_PROMPT = `Answer the question using ONLY the provided document excerpts below. Follow these rules:
+1. Cite the source document title and chunk index after each claim.
+2. If the provided documents do not contain enough information, say so clearly — do not make up information.
+3. Be concise but thorough. Use markdown formatting for readability when appropriate.`;
 
 export class QaService {
-  private persistence: PersistenceService;
-  private indexingService: IndexingService;
+  private db: Database.Database;
+  private embedFn: (text: string) => Promise<Float32Array>;
+  private getSettings: () => RetrievalSettings;
+  private getLlmSettings: () => LlmSettings;
+  private llmProvider: LlmProvider | null;
 
-  constructor(persistence: PersistenceService, indexingService?: IndexingService) {
-    this.persistence = persistence;
-    this.indexingService = indexingService ?? new IndexingService(persistence);
+  constructor(
+    db: Database.Database,
+    embedFn: (text: string) => Promise<Float32Array>,
+    getSettings?: () => RetrievalSettings,
+    llmProvider?: LlmProvider | null,
+    getLlmSettings?: () => LlmSettings,
+  ) {
+    this.db = db;
+    this.embedFn = embedFn;
+    this.getSettings = getSettings ?? (() => ({
+      retrievalMode: isVectorExtensionLoaded() ? 'hybrid' : 'bm25',
+      topK: 5,
+      topN: 20,
+      rrfK: 60,
+      embeddingsEnabled: true,
+    }));
+    this.getLlmSettings = getLlmSettings ?? (() => ({
+      modelName: '',
+      temperature: 0.3,
+      maxTokens: 1024,
+      streamEnabled: true,
+      systemPrompt: '',
+    }));
+    this.llmProvider = llmProvider ?? null;
   }
 
-  /** Ask a question and get a grounded answer with citations. */
   async ask(question: string): Promise<QAResponse> {
     log.info('Processing question', { question: question.substring(0, 100) });
-    
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 400));
 
-    const chunks = this.indexingService.getAllChunks();
-    const citations: Citation[] = [];
+    const settings = this.getSettings();
 
-    log.debug('Retrieving chunks for Q&A', { totalChunks: chunks.length });
+    const results = await hybridSearch(this.db, question, this.embedFn, {
+      mode: isVectorExtensionLoaded() ? settings.retrievalMode : 'bm25',
+      topK: settings.topK,
+      topN: settings.topN,
+      rrfK: settings.rrfK,
+    });
 
-    if (chunks.length > 0) {
-      // Find relevant chunks using keyword matching
-      const questionWords = question.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-      const scored = chunks.map(chunk => {
-        const contentLower = chunk.content.toLowerCase();
-        const score = questionWords.reduce(
-          (acc, word) => acc + (contentLower.includes(word) ? 1 : 0),
-          0
-        );
-        return { chunk, score };
-      });
+    const docs = this.db.prepare('SELECT id, title FROM documents').all() as Array<{ id: string; title: string }>;
 
-      // Take top 2 relevant chunks as citations
-      const relevant = scored
-        .filter(s => s.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 2);
+    const citations: Citation[] = results.map(r => {
+      const doc = docs.find(d => d.id === r.chunk.documentId);
+      return {
+        documentId: r.chunk.documentId,
+        documentTitle: doc?.title ?? 'Unknown Document',
+        chunkIndex: r.chunk.idx,
+        excerpt: r.chunk.content.substring(0, 200),
+        confidence: parseFloat(Math.min(1, r.fusedScore * 30 + (r.sources.length > 1 ? 0.15 : 0)).toFixed(2)),
+        bm25Rank: r.bm25Rank,
+        vectorRank: r.vectorRank,
+        sources: r.sources,
+      };
+    });
 
-      // Get document metadata for citations
-      const docs = this.persistence.readJson<Array<{ id: string; title: string }>>('documents-meta.json') ?? [];
+    const confidence = this.computeConfidence(results);
 
-      // Calculate normalized confidence scores (0-1 range)
-      const maxScore = Math.max(...relevant.map(r => r.score), 1);
+    log.info('Hybrid retrieval for question', {
+      resultCount: results.length,
+      citationCount: citations.length,
+      confidence,
+      topSource: results[0]?.sources ?? [],
+      topFusedScore: results[0]?.fusedScore ?? 0,
+    });
 
-      for (const { chunk, score } of relevant) {
-        const doc = docs.find(d => d.id === chunk.documentId);
-        const normalizedScore = score / maxScore; // Normalize to 0-1
-        citations.push({
-          documentId: chunk.documentId,
-          documentTitle: doc?.title ?? 'Unknown Document',
-          chunkIndex: chunk.index,
-          excerpt: chunk.content.substring(0, 200),
-          confidence: parseFloat(normalizedScore.toFixed(2)), // Round to 2 decimals
+    let answer: string;
+    let modelUsed: string | undefined;
+    let tokensUsed: { prompt: number; completion: number; total: number } | undefined;
+
+    if (this.llmProvider && citations.length > 0) {
+      const messages = this.buildPrompt(question, citations);
+      try {
+        const llmS = this.getLlmSettings();
+        const chatResponse = await this.llmProvider.chat(messages, {
+          model: llmS.modelName || undefined,
+          temperature: llmS.temperature,
+          maxTokens: llmS.maxTokens,
         });
+        answer = chatResponse.content;
+        modelUsed = chatResponse.model;
+        tokensUsed = chatResponse.usage;
+      } catch (error: unknown) {
+        log.error('LLM answer generation failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        answer = this.generateMockAnswer(question, citations);
       }
-      
-      log.debug('Generated citations', {
-        citationCount: citations.length,
-        documentIds: citations.map(c => c.documentId),
-      });
+    } else if (this.llmProvider && citations.length === 0) {
+      answer = 'No relevant documents were found to answer your question. Please import and index documents containing relevant information.';
+    } else {
+      answer = this.generateMockAnswer(question, citations);
     }
-
-    // Generate answer from mock patterns or use fallback
-    const answer = this.generateAnswer(question, citations);
 
     const response: QAResponse = {
       answer,
       citations,
-      confidence: citations.length > 0 ? 0.85 : 0.3,
+      confidence,
       timestamp: new Date().toISOString(),
+      modelUsed,
+      tokensUsed,
     };
 
     log.info('Question answered', {
       citationCount: citations.length,
-      confidence: response.confidence,
+      confidence,
       answerLength: answer.length,
+      modelUsed,
+      tokensUsed: tokensUsed ? `${tokensUsed.prompt}p / ${tokensUsed.completion}c / ${tokensUsed.total}t` : undefined,
     });
 
-    // Save to history
     this.saveToHistory(question, response);
 
     return response;
   }
 
-  /** Get the Q&A history. */
+  async retrieveDebug(question: string, opts?: { mode?: 'hybrid' | 'bm25' | 'vector' }): Promise<DebugSearchResult> {
+    log.debug('Retrieval debug requested', { question: question.substring(0, 100), mode: opts?.mode });
+
+    const settings = this.getSettings();
+    const mode = opts?.mode ?? (isVectorExtensionLoaded() ? settings.retrievalMode : 'bm25');
+
+    const results = await debugSearch(this.db, question, this.embedFn, {
+      mode,
+      topK: settings.topK,
+      topN: settings.topN,
+      rrfK: settings.rrfK,
+    });
+
+    log.debug('Retrieval debug completed', {
+      bm25Count: results.bm25Results.length,
+      vectorCount: results.vectorResults.length,
+      fusedCount: results.fusedResults.length,
+    });
+
+    return results;
+  }
+
+  private buildPrompt(question: string, citations: Citation[]): ChatMessage[] {
+    const llmS = this.getLlmSettings();
+    const systemPrompt = llmS.systemPrompt || DEFAULT_SYSTEM_PROMPT;
+
+    const excerptBlocks = citations.map((c, i) =>
+      `[Source ${i + 1}] ${c.documentTitle} (chunk ${c.chunkIndex}):\n${c.excerpt}`
+    );
+
+    const systemContent = `${systemPrompt}\n\nBelow are the relevant document excerpts to use for answering:\n\n${excerptBlocks.join('\n\n')}`;
+
+    return [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: question },
+    ];
+  }
+
+  private computeConfidence(results: Array<{ fusedScore: number; sources: Array<'bm25' | 'vector'> }>): number {
+    if (results.length === 0) return 0;
+
+    const topScore = results[0].fusedScore;
+    const gapToSecond = results.length > 1 ? topScore - results[1].fusedScore : topScore;
+    const hasBothSources = results[0].sources.length > 1;
+
+    let c = topScore * 30;
+    if (hasBothSources) c += 0.15;
+    if (gapToSecond > 0.005) c += 0.1;
+    if (results.length > 1 && results[0].sources.length > 1 && results[1].sources.length > 1) c += 0.05;
+
+    return parseFloat(Math.min(1, c).toFixed(2));
+  }
+
   getHistory(): QAHistory[] {
-    const history = this.persistence.readJson<QAHistory[]>(QA_HISTORY_FILE) ?? [];
+    const rows = this.db.prepare('SELECT * FROM qa_history ORDER BY ts DESC').all() as any[];
+
+    const history: QAHistory[] = rows.map(row => {
+      const tokensUsed: TokenUsage | undefined =
+        row.prompt_tokens != null && row.completion_tokens != null && row.total_tokens != null
+          ? { prompt: row.prompt_tokens, completion: row.completion_tokens, total: row.total_tokens }
+          : undefined;
+
+      return {
+        question: row.question,
+        response: {
+          answer: row.answer,
+          citations: JSON.parse(row.citations_json),
+          confidence: row.confidence,
+          timestamp: row.ts,
+          modelUsed: row.model_used ?? undefined,
+          tokensUsed,
+        },
+      };
+    });
+
     log.debug('Retrieved Q&A history', { entryCount: history.length });
     return history;
   }
 
-  /** Clear all Q&A history. */
   clearHistory(): void {
-    this.persistence.writeJson(QA_HISTORY_FILE, []);
+    this.db.prepare('DELETE FROM qa_history').run();
     log.info('Q&A history cleared');
   }
 
-  private generateAnswer(question: string, citations: Citation[]): string {
-    // Match against mock patterns
+  private generateMockAnswer(question: string, citations: Citation[]): string {
     const questionLower = question.toLowerCase();
+    const MOCK_PATTERNS: Array<{ keywords: string[]; answer: string }> = [
+      {
+        keywords: ['design', 'architecture', 'pattern'],
+        answer: 'The system uses a layered architecture with clear boundaries between the main process, preload scripts, and renderer. Each layer communicates through typed IPC channels, and the services layer handles business logic independently of the UI.',
+      },
+      {
+        keywords: ['import', 'document', 'file'],
+        answer: 'Documents are imported by copying the source file to the local data directory. The system extracts text content and creates metadata including title, filename, size, and import timestamp. After import, documents can be indexed for search.',
+      },
+      {
+        keywords: ['index', 'chunk', 'search'],
+        answer: 'The indexing pipeline splits documents into chunks of approximately 500 characters at paragraph boundaries. Each chunk includes metadata like character count and word count. The index enables grounded Q&A with citations pointing to specific document sections.',
+      },
+      {
+        keywords: ['retrieval', 'search', 'query'],
+        answer: 'Retrieval works by matching query keywords against indexed chunks. The system ranks chunks by keyword overlap and returns the most relevant excerpts as citations alongside the generated answer.',
+      },
+      {
+        keywords: ['meeting', 'notes', 'summary'],
+        answer: 'The meeting summary indicates that the team discussed implementing a retrieval-augmented generation pipeline. Key decisions included using local chunk storage and citation-based verification to ensure answer accuracy.',
+      },
+    ];
+
     for (const pattern of MOCK_PATTERNS) {
       if (pattern.keywords.some(kw => questionLower.includes(kw))) {
         if (citations.length > 0) {
@@ -151,7 +251,6 @@ export class QaService {
       }
     }
 
-    // Fallback answer
     if (citations.length > 0) {
       return `Based on the available documents, the most relevant information comes from "${citations[0].documentTitle}": ${citations[0].excerpt.substring(0, 150)}. However, a more specific answer would require additional context.`;
     }
@@ -159,7 +258,6 @@ export class QaService {
     return 'No relevant documents have been indexed yet. Please import and index documents before asking questions.';
   }
 
-  /** Submit feedback for a Q&A response. */
   submitFeedback(responseTimestamp: string, question: string, rating: 'positive' | 'negative'): FeedbackEntry {
     const entry: FeedbackEntry = {
       id: crypto.randomUUID(),
@@ -169,9 +267,10 @@ export class QaService {
       submittedAt: new Date().toISOString(),
     };
 
-    const feedback = this.getFeedback();
-    feedback.push(entry);
-    this.persistence.writeJson(FEEDBACK_FILE, feedback);
+    this.db.prepare(`
+      INSERT INTO feedback (id, response_ts, question, rating, comment, submitted_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(entry.id, entry.responseTimestamp, entry.question, entry.rating, null, entry.submittedAt);
 
     log.info('Feedback submitted', {
       feedbackId: entry.id,
@@ -182,16 +281,188 @@ export class QaService {
     return entry;
   }
 
-  /** Get all feedback entries. */
   getFeedback(): FeedbackEntry[] {
-    const feedback = this.persistence.readJson<FeedbackEntry[]>(FEEDBACK_FILE) ?? [];
+    const rows = this.db.prepare('SELECT * FROM feedback ORDER BY submitted_at DESC').all() as any[];
+
+    const feedback: FeedbackEntry[] = rows.map(row => ({
+      id: row.id,
+      responseTimestamp: row.response_ts,
+      question: row.question,
+      rating: row.rating as 'positive' | 'negative',
+      submittedAt: row.submitted_at,
+    }));
+
     log.debug('Retrieved feedback entries', { entryCount: feedback.length });
     return feedback;
   }
 
-  private saveToHistory(question: string, response: QAResponse): void {
-    const history = this.getHistory();
-    history.push({ question, response });
-    this.persistence.writeJson(QA_HISTORY_FILE, history);
+  async askStream(
+    question: string,
+    onChunk: (chunk: StreamChunk) => void,
+    signal?: AbortSignal,
+  ): Promise<QAResponse> {
+    log.info('Processing streaming question', { question: question.substring(0, 100) });
+
+    const settings = this.getSettings();
+    const results = await hybridSearch(this.db, question, this.embedFn, {
+      mode: isVectorExtensionLoaded() ? settings.retrievalMode : 'bm25',
+      topK: settings.topK,
+      topN: settings.topN,
+      rrfK: settings.rrfK,
+    });
+
+    const docs = this.db.prepare('SELECT id, title FROM documents').all() as Array<{ id: string; title: string }>;
+
+    const citations: Citation[] = results.map(r => {
+      const doc = docs.find(d => d.id === r.chunk.documentId);
+      return {
+        documentId: r.chunk.documentId,
+        documentTitle: doc?.title ?? 'Unknown Document',
+        chunkIndex: r.chunk.idx,
+        excerpt: r.chunk.content.substring(0, 200),
+        confidence: parseFloat(Math.min(1, r.fusedScore * 30 + (r.sources.length > 1 ? 0.15 : 0)).toFixed(2)),
+        bm25Rank: r.bm25Rank,
+        vectorRank: r.vectorRank,
+        sources: r.sources,
+      };
+    });
+
+    const confidence = this.computeConfidence(results);
+    const timestamp = new Date().toISOString();
+
+    log.info('Hybrid retrieval for streaming question', {
+      resultCount: results.length,
+      citationCount: citations.length,
+      confidence,
+    });
+
+    if (citations.length === 0) {
+      const answer = 'No relevant documents were found to answer your question. Please import and index documents containing relevant information.';
+      onChunk({ type: 'delta', content: answer });
+      const response: QAResponse = { answer, citations, confidence, timestamp };
+      this.saveToHistory(question, response);
+      return response;
+    }
+
+    if (!this.llmProvider) {
+      const answer = 'LLM not configured. Add your NVIDIA API key to .env';
+      onChunk({ type: 'delta', content: answer });
+      const response: QAResponse = { answer, citations, confidence, timestamp };
+      this.saveToHistory(question, response);
+      return response;
+    }
+
+    const messages = this.buildPrompt(question, citations);
+    let fullContent = '';
+    let modelUsed: string | undefined;
+    let tokensUsed: { prompt: number; completion: number; total: number } | undefined;
+
+    try {
+      const streamOpts = this.getLlmSettings();
+      for await (const chunk of this.llmProvider.chatStream(messages, {
+        temperature: streamOpts.temperature,
+        maxTokens: streamOpts.maxTokens,
+        model: streamOpts.modelName || undefined,
+        signal,
+      })) {
+        if (chunk.type === 'delta') {
+          fullContent += chunk.content;
+          onChunk(chunk);
+        } else if (chunk.type === 'done') {
+          modelUsed = chunk.model;
+          tokensUsed = chunk.usage;
+        } else if (chunk.type === 'error') {
+          if (chunk.error === 'Request cancelled' || signal?.aborted) {
+            const answer = fullContent ? `${fullContent}\n\n*[cancelled]*` : '*[cancelled]*';
+            onChunk({ type: 'done', usage: undefined });
+            const response: QAResponse = { answer, citations, confidence, timestamp };
+            this.saveToHistory(question, response);
+            return response;
+          }
+          log.error('Stream error chunk received', { error: chunk.error });
+          onChunk({ type: 'error', error: classifyLlmError(new Error(chunk.error)) });
+          const response: QAResponse = {
+            answer: fullContent || classifyLlmError(new Error(chunk.error)),
+            citations,
+            confidence,
+            timestamp,
+            modelUsed,
+            tokensUsed,
+          };
+          this.saveToHistory(question, response);
+          return response;
+        }
+      }
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        const answer = fullContent ? `${fullContent}\n\n*[cancelled]*` : '*[cancelled]*';
+        onChunk({ type: 'done', usage: undefined });
+        const response: QAResponse = { answer, citations, confidence, timestamp, modelUsed, tokensUsed };
+        this.saveToHistory(question, response);
+        return response;
+      }
+      const errorMsg = classifyLlmError(error);
+      log.error('LLM stream failed', { error: error instanceof Error ? error.message : String(error) });
+      onChunk({ type: 'error', error: errorMsg });
+      const response: QAResponse = {
+        answer: fullContent || errorMsg,
+        citations,
+        confidence,
+        timestamp,
+        modelUsed,
+        tokensUsed,
+      };
+      this.saveToHistory(question, response);
+      return response;
+    }
+
+    const answer = fullContent;
+    const response: QAResponse = { answer, citations, confidence, timestamp, modelUsed, tokensUsed };
+
+    log.info('Streaming question answered', {
+      citationCount: citations.length,
+      confidence,
+      answerLength: answer.length,
+      modelUsed,
+      tokensUsed: tokensUsed ? `${tokensUsed.prompt}p / ${tokensUsed.completion}c / ${tokensUsed.total}t` : undefined,
+    });
+
+    this.saveToHistory(question, response);
+    onChunk({ type: 'done', usage: tokensUsed, model: modelUsed });
+    return response;
   }
+
+  private saveToHistory(question: string, response: QAResponse): void {
+    this.db.prepare(`
+      INSERT INTO qa_history (ts, question, answer, confidence, citations_json, model_used, prompt_tokens, completion_tokens, total_tokens)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      response.timestamp,
+      question,
+      response.answer,
+      response.confidence,
+      JSON.stringify(response.citations),
+      response.modelUsed ?? null,
+      response.tokensUsed?.prompt ?? null,
+      response.tokensUsed?.completion ?? null,
+      response.tokensUsed?.total ?? null,
+    );
+  }
+}
+
+export function classifyLlmError(error: unknown): string {
+  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (msg.includes('401') || msg.includes('403') || msg.includes('invalid api key') || msg.includes('unauthorized') || msg.includes('forbidden')) {
+    return 'Invalid API key. Check your .env file.';
+  }
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')) {
+    return 'Rate limited by NVIDIA. Please wait and try again.';
+  }
+  if (msg.includes('timed out') || msg.includes('timeout') || msg.includes('etimedout') || msg.includes('econnrefused') || msg.includes('econnreset')) {
+    return 'Request timed out. Check your connection.';
+  }
+  if (msg.includes('50') || msg.includes('service unavailable') || msg.includes('bad gateway') || msg.includes('service temporarily')) {
+    return 'LLM service unavailable. Try again later.';
+  }
+  return `LLM request failed: ${error instanceof Error ? error.message.substring(0, 100) : String(error).substring(0, 100)}`;
 }
