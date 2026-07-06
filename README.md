@@ -1,129 +1,118 @@
-# Knowledge Base — Grounded Q&A with Hybrid Retrieval
+# Knowledge Base — Session-Based Q&A with LLM Integration
 
-A desktop application for managing a personal knowledge base. Import text and Markdown documents, index them into searchable chunks with BM25 + vector embeddings, and ask questions with grounded answers backed by citations and dynamic confidence scores.
+A desktop application for managing a personal knowledge base. Import text and Markdown documents, index them into searchable chunks with BM25 + vector embeddings, and ask grounded questions powered by LLM answer generation (NVIDIA NIM) with session-based conversations.
+
+## UI Screenshots
+
+| Chat Interface | Knowledge Base View | Q&A History |
+|:---:|:---:|:---:|
+| ![Chat UI](ui_images/chat_ui_image.png) | ![Knowledge Base](ui_images/knowledge_base_ui.png) | ![KB History](ui_images/kb_history_ui.png) |
 
 ## Features
+
+### Session-Based Chat
+- **Multi-session conversations** — Create, rename, archive, and delete sessions
+- **Auto-title** — Automatically titles sessions based on the first message
+- **Streaming answers** — LLM-generated answers streamed token-by-token via SSE
+- **Markdown rendering** — Answers rendered with full Markdown support
+- **Message tools** — Per-message tool selection: KB RAG, Web Search, File Upload
+- **Cancellable streaming** — Stop answer generation mid-stream
 
 ### Document Management
 - **Import documents** — Add `.txt` and `.md` files via native Electron file picker
 - **File validation** — Existence check and 10 MB size limit
 - **Rich metadata** — Title, filename, size, import date, word count, line count, file type, and indexing status
 - **Content viewing** — Browse full document content with chunk details
-- **Document deletion** — Removes documents and all associated data (cascading SQLite deletes)
+- **Document deletion** — Cascading SQLite deletes
 
 ### Text Indexing
-- **Smart chunking** — Splits documents into ~500-character chunks at paragraph boundaries
-- **Chunk metadata** — Tracks character count and word count per chunk
-- **Status tracking** — Monitor indexing progress per document and across the library
-- **Batch indexing** — Index individual documents or the entire library at once
-- **Progress indicators** — Real-time status updates in sidebar and status bar
-
-### Hybrid Retrieval (BM25 + Vector Embeddings)
-- **BM25 keyword search** — SQLite FTS5 with `porter+unicode61` tokenizer and `bm25()` ranking
-- **Vector semantic search** — `sqlite-vec` extension with 384-dim embeddings via `all-MiniLM-L6-v2`
-- **Reciprocal Rank Fusion** — Merges BM25 and vector results with configurable RRF constant (k=60 default)
-- **Three retrieval modes** — Hybrid (default), BM25-only, or vector-only, switchable at runtime via Settings panel
-- **Local embeddings** — All embeddings computed locally via `@xenova/transformers` (no network calls, ~25 MB model)
-- **Rebuild embeddings** — One-click re-embedding of the entire library with progress feedback
+- **Smart chunking** — Split documents into ~500-character chunks at paragraph boundaries
+- **Hybrid retrieval** — BM25 FTS5 keyword search + 384-dim vector embeddings via `all-MiniLM-L6-v2`
+- **Reciprocal Rank Fusion** — Merges BM25 and vector results with configurable RRF constant
+- **Three retrieval modes** — Hybrid (default), BM25-only, or vector-only
+- **Local embeddings** — All embeddings computed locally via `@xenova/transformers`
 
 ### Grounded Q&A with Citations
-- **Natural language queries** — Ask questions about your document library
-- **Cited answers** — Every answer includes references to specific document chunks with BM25 and vector rank badges
-- **Dynamic confidence scores** — Derived from fused score distribution (top score, gap to runner-up, both-sources bonus)
-- **8 mock answer patterns** — Covers architecture, import, indexing, retrieval, meetings, logging, feedback, and clean state topics
-- **Fast responses** — Query latency typically under 500ms end-to-end
-- **Persistent history** — Full Q&A history saved to SQLite across sessions
+- **Cited answers** — Every answer includes references to specific document chunks
+- **Dynamic confidence scores** — Derived from fused score distribution
+- **KB view mode** — Dedicated grounded Q&A panel with chunk details and rank badges
+- **Persistent history** — Full Q&A history saved to SQLite
 
-### Conversation History
-- **Chat-style interface** — User questions (purple, right-aligned) and assistant answers (dark, left-aligned)
-- **Expandable citations** — View supporting chunks with document title, chunk index, BM25/vector rank badges, and excerpt
-- **Confidence indicators** — Color-coded (green/yellow/red) reliability markers
-- **Timestamps** — Track when each exchange occurred
-- **Clear history** — Reset conversation with confirmation dialog
+### Web Search Integration
+- **Tavily API** — Real-time web search results in chat
+- **Configurable** — Toggle on/off per message
 
-### Retrieval Settings
-- **Mode selector** — Switch between hybrid, BM25-only, and vector-only retrieval
-- **Configurable parameters** — topK (results returned), topN (candidates per source), RRF constant
-- **Embeddings toggle** — Enable/disable vector embeddings per query
-- **Runtime activation** — Changes take effect on the very next question (no restart needed)
-- **Validation** — Invalid values rejected with WARN log and ignored
+### File Upload for Chat Context
+- **Text extraction** — Upload files to provide context for the LLM
+- **Supported formats** — `.txt`, `.md`, `.pdf`, `.docx`, `.json`
+
+### LLM Answer Generation
+- **NVIDIA NIM** — Streaming LLM inference via NVIDIA's hosted API
+- **Configurable model** — Model selection via settings
+- **Streaming** — Token-by-token markdown rendering
+
+### Theme Toggle
+- **Dark/Light** — System-preference-aware theme with CSS custom properties
+- **Persistent** — Theme choice saved across sessions
 
 ### Feedback Collection
-- **Thumbs up/down** — Rate Q&A responses directly in the conversation history
-- **Persistent feedback** — All ratings saved to SQLite across sessions
-- **Detailed entries** — Includes Q&A timestamp, question, rating, optional comment, and submission time
+- **Thumbs up/down** — Rate Q&A responses directly in chat
+- **Persistent** — All ratings saved to SQLite
 
 ### Clean State Reset
 - **One-click reset** — Clear all data from the application header
-- **Confirmation dialog** — Prevents accidental data loss
-- **Complete cleanup** — Removes entire data directory (SQLite, content, documents, settings)
-- **Fresh start** — Returns app to initial empty state
+- **Complete cleanup** — Removes entire data directory
 
 ### Full SQLite Persistence
-- **Single database file** — All data in `index.db` with WAL journaling and foreign key constraints
-- **Automatic saving** — Every operation persists immediately
-- **Auto-load on startup** — Document list and Q&A history load automatically
-- **Local storage** — Data stored in platform-specific user data directory
-- **Six tables** — `documents`, `chunks`, `chunks_fts` (FTS5), `chunks_vec` (vector), `qa_history`, `feedback`
-- **Versioned migrations** — Schema version tracked in `schema_meta` table, idempotent migration runner
+- **Single database file** — WAL journaling with foreign key constraints
+- **Auto-load on startup** — Sessions, documents, and history load automatically
+- **Versioned migrations** — Schema version tracked in `schema_meta`
 
 ### Real-Time Status Bar
-- **Index status** — Shows idle, indexing, ready, or error state
-- **Color-coded indicator** — Visual dot (grey/yellow/green/red)
-- **Document counts** — Total and indexed document counts
+- **Document/index status** — Visual indicator with color-coded dot
 - **Last activity** — Timestamp of most recent operation
 
 ## Architecture
 
-Built with modern web technologies and Electron security best practices:
-
-- **Electron** — Desktop application framework with secure IPC
-- **TypeScript** — Type-safe codebase with strict mode
-- **React 18** — Modern UI with hooks and functional components
-- **Vite** — Fast bundling and hot module replacement
-- **SQLite** — Embedded database via `better-sqlite3` with FTS5 + `sqlite-vec` extensions
-- **Service layer** — Clean separation with dependency injection
-- **Structured logging** — JSON logs with timestamps, levels, and service tags
-
-### Layer Structure
-
 ```
 Renderer (React)
-    ↕ window.knowledgeBase.* (typed IPC bridge)
-Preload Script (contextBridge)
+    ↕ window.knowledgeBase.* (typed IPC bridge via contextBridge)
+Preload Script
     ↕ ipcRenderer.invoke(IPC_CHANNELS.*)
 Main Process (IPC handlers)
     ↕ Service method calls
 Services Layer (business logic)
-    ├─ PersistenceService    — JSON/text I/O, clean state reset
-    ├─ DocumentService       — Document CRUD, metadata extraction
-    ├─ IndexingService       — Chunking, SQLite inserts, embedding generation
-    ├─ EmbeddingService      — all-MiniLM-L6-v2 (384-dim), embed/embedBatch
-    ├─ Retriever             — hybridSearch (BM25 + vector + RRF)
-    ├─ QaService             — Question answering with dynamic confidence
-    ├─ SettingsService       — Retrieval settings CRUD with validation
-    └─ Logger                — Structured JSON logging
+    ├─ PersistenceService  — JSON/text I/O, clean state reset
+    ├─ DocumentService     — Document CRUD, metadata extraction
+    ├─ IndexingService     — Chunking, SQLite inserts, embedding generation
+    ├─ EmbeddingService    — all-MiniLM-L6-v2 (384-dim)
+    ├─ Retriever           — hybridSearch (BM25 + vector + RRF)
+    ├─ QaService           — Grounded Q&A with citations
+    ├─ ChatService         — Session messages, streaming communication
+    ├─ SessionService      — Session CRUD, auto-title
+    ├─ LLMService          — NVIDIA NIM streaming inference
+    ├─ WebSearchService    — Tavily API integration
+    ├─ SettingsService     — Retrieval settings CRUD
+    ├─ ThemeService        — Dark/light theme management
+    └─ Logger              — Structured JSON logging
 ```
 
-### Data Storage
+### Electron Layer Boundaries
+
+| Layer | Location | Responsibilities |
+|-------|----------|-----------------|
+| Main Process | `src/main/` | BrowserWindow, IPC registration, filesystem access |
+| Preload | `src/preload/` | Typed `contextBridge` API bridge |
+| Renderer | `src/renderer/` | React UI, communicates via `window.knowledgeBase` |
+| Services | `src/services/` | Pure TS business logic, constructor-injected PersistenceService |
+
+### Data Flow (Chat)
 
 ```
-~/.config/knowledge-base/knowledge-base-data/  (Linux)
-~/Library/Application Support/knowledge-base/knowledge-base-data/  (macOS)
-%APPDATA%/knowledge-base/knowledge-base-data/  (Windows)
-
-index.db              # SQLite database (WAL mode, foreign keys ON)
-  ├─ documents         # Document metadata
-  ├─ chunks            # Text chunks linked to documents (FK CASCADE)
-  ├─ chunks_fts        # FTS5 full-text index (BM25 ranking)
-  ├─ chunks_vec        # vec0 virtual table (384-dim embeddings)
-  ├─ qa_history        # Q&A interaction log
-  ├─ feedback          # User feedback entries
-  └─ schema_meta       # Migration version tracking
-content/<doc-id>.txt   # Extracted text content
-documents/<filename>   # Original file copies
-settings.json          # RetrievalSettings (mode, topK, topN, rrfK, embeddingsEnabled)
-legacy/                # One-time backup of pre-SQLite JSON files
+User types message → ChatView → window.knowledgeBase.chat.send(sessionId, message, tools)
+    → IPC chat:send → ChatService → LLMService.stream(model, messages, tools?)
+    → IPC chat:stream-chunk (tokens) → ChatView renders streaming text
+    → IPC chat:stream-done (final) → ChatView finalizes message
 ```
 
 ## Getting Started
@@ -133,23 +122,25 @@ legacy/                # One-time backup of pre-SQLite JSON files
 - Node.js 18+ and npm
 - Linux, macOS, or Windows
 - C++ build tools (for native module compilation)
+- NVIDIA NIM API key (for LLM features)
+- Tavily API key (for web search)
 
 ### Installation
-
-1. Clone the repository
-2. Run the initialization script:
 
 ```bash
 bash init.sh
 ```
 
-This will:
-- Install dependencies
-- Rebuild native modules (`better-sqlite3`)
-- Run type checks
-- Build the project
-- Verify harness files
-- Check sample data
+This installs dependencies, rebuilds native modules, runs type checks, and builds the project.
+
+### Configuration
+
+Copy `.env.example` to `.env` and add your API keys:
+
+```
+NVIDIA_API_KEY=nvapi-...
+TAVILY_API_KEY=tvly-...
+```
 
 ### Running the App
 
@@ -157,22 +148,12 @@ This will:
 npm run dev
 ```
 
-The application window will open automatically.
-
 ### Development
 
 ```bash
-# Type checking only
-npm run check
-
-# Production build
-npm run build
-
-# Run tests (rebuilds native modules for Node.js first)
-npm test
-
-# Watch mode for tests
-npm test:watch
+npm run check    # Type checking
+npm run build    # Production build
+npm test         # Run all 204 tests
 ```
 
 ## The Harness
@@ -182,20 +163,20 @@ This project includes a comprehensive development harness for AI agents and huma
 ### Core Files
 
 - **AGENTS.md** — Startup rules, layer boundaries, conventions, and definition of done
-- **feature_list.json** — Current status of all 36 features with evidence and timestamps
+- **feature_list.json** — Current status of all 53 features with evidence
 - **init.sh** — Project initialization and verification script
 
 ### Documentation
 
-- **docs/ARCHITECTURE.md** — Electron layers, data flow, IPC channels (32 total), and storage layout
-- **docs/PRODUCT.md** — Feature requirements and user-facing behavior, including planned LLM integration
+- **docs/ARCHITECTURE.md** — Electron layers, data flow, IPC channels, storage layout
+- **docs/PRODUCT.md** — Feature requirements and user-facing behavior
 - **docs/RELIABILITY.md** — Logging, observability, clean state, and benchmarking
 
 ### Quality Control
 
 - **clean-state-checklist.md** — Verification checklist for testing cycles
-- **evaluator-rubric.md** — Grading criteria for code quality assessment
-- **quality-document.md** — Comprehensive quality assessment (97/100, Grade A+)
+- **evaluator-rubric.md** — Grading criteria for code quality
+- **quality-document.md** — Comprehensive quality assessment
 - **session-handoff.md** — Context for resuming work across sessions
 - **agent-progress.md** — Implementation log with learnings and decisions
 
@@ -203,167 +184,68 @@ This project includes a comprehensive development harness for AI agents and huma
 
 #### Benchmark Scripts
 
-Run performance benchmarks to measure key operations:
-
 ```bash
 bash scripts/benchmark.sh
 ```
 
-**What it measures:**
-
-- **Import throughput** — Copies 3 sample documents and reports files/sec
-- **Indexing speed** — Estimates chunk count and reports chunks/sec
-- **Query latency** — Processes 5 test queries and reports avg latency
-- **Data integrity** — Validates imported files match originals byte-for-byte
-
-**Example output:**
-
-```
-=== Benchmark Results ===
-[import] 3 files: 14ms (214 files/sec)
-[index]  ~20 chunks: 13ms (1538 chunks/sec)
-[query]  5 questions: 13ms (2.6ms avg)
-[verify] Data integrity: PASS
-=== Summary: 4/4 tasks passed ===
-```
+Measures import throughput, indexing speed, query latency, and data integrity.
 
 #### Cleanup Scanner
-
-Check for stale artifacts and inconsistent state:
 
 ```bash
 bash scripts/cleanup-scanner.sh
 ```
 
-**What it checks:**
-
-- **Orphaned content files** — Content without metadata
-- **Dangling chunks** — Chunks without index entries
-- **Missing content** — Metadata without content files
-- **Inconsistent metadata** — Indexed status without chunks
-- **Stale Q&A references** — History citing deleted documents
-
-**Example output:**
-
-```
-=== Cleanup Scanner ===
-[OK] No orphaned content files
-[OK] No dangling chunk files
-[OK] No missing content files
-[OK] All indexed documents have chunk files
-[OK] No stale Q&A references
-=== Result: CLEAN (0 issues) ===
-```
+Checks for orphaned files, dangling chunks, missing content, and stale references.
 
 ### Structured Logging
 
-All services emit structured JSON logs for runtime observability:
-
-```json
-{
-  "timestamp": "2026-03-30T12:00:00.000Z",
-  "level": "INFO",
-  "service": "document-service",
-  "message": "Document imported successfully",
-  "data": {
-    "documentId": "abc-123",
-    "filename": "design-notes.md",
-    "sizeBytes": 2048
-  }
-}
-```
-
-**Log levels:**
-- DEBUG — Routine data access
-- INFO — Significant events
-- WARN — Non-critical issues
-- ERROR — Failures
-
-**Configure log level:**
+All services emit structured JSON logs. Set log level via environment:
 
 ```bash
-LOG_LEVEL=INFO npm run dev    # INFO, WARN, ERROR only
-LOG_LEVEL=WARN npm run dev    # WARN and ERROR only
-LOG_LEVEL=ERROR npm run dev   # ERROR only
+LOG_LEVEL=INFO npm run dev
 ```
 
 ## Project Status
 
-**32 of 36 features complete.**
+**53 of 53 features complete.** All features pass with documented evidence in `feature_list.json`.
 
-| Phase | Feature | Status |
-|-------|---------|--------|
-| Core | Window Launch | ✓ pass |
-| Core | Document List Panel | ✓ pass |
-| Core | Question Panel | ✓ pass |
-| Core | Data Directory | ✓ pass |
-| Core | Document Import | ✓ pass |
-| Core | Document Detail with Content | ✓ pass |
-| Core | Basic Persistence | ✓ pass |
-| Core | Document Chunking | ✓ pass |
-| Core | Metadata Extraction | ✓ pass |
-| Core | Indexing Status in StatusBar | ✓ pass |
-| Core | Grounded Q&A with Citations | ✓ pass |
-| Core | Structured JSON Logging | ✓ pass |
-| Core | Conversation History | ✓ pass |
-| Core | Feedback Collection | ✓ pass |
-| Core | Clean State Reset | ✓ pass |
-| Core | Full Persistence | ✓ pass |
-| Core | Status Bar | ✓ pass |
-| Tooling | Benchmark Scripts | ✓ pass |
-| Tooling | Cleanup Scanner | ✓ pass |
-| Tooling | Complete Harness | ✓ pass |
-| A. Foundation | Embedded SQLite Database | ✓ pass |
-| A. Foundation | Versioned Schema Migrations | ✓ pass |
-| A. Foundation | Legacy JSON → SQLite Import | ✓ pass |
-| B. Indexing | FTS5 BM25 Keyword Index | ✓ pass |
-| B. Indexing | sqlite-vec Vector Extension | ✓ pass |
-| B. Indexing | Local Embedding Service | ✓ pass |
-| B. Indexing | Indexing to SQLite + Vectors | ✓ pass |
-| B. Indexing | Rebuild Embeddings Command | ✓ pass |
-| C. Hybrid Retrieval | Hybrid Retriever (BM25 + Vector + RRF) | ✓ pass |
-| C. Hybrid Retrieval | QaService Wired to Hybrid Retriever | ✓ pass |
-| C. Hybrid Retrieval | Retrieval Debug IPC | ✓ pass |
-| E. Settings & UX | Retrieval Settings | ✓ pass |
-| E. Settings & UX | Citation Source Badges | ⏳ pending |
-| D. Quality | Golden Q&A Eval Set | ⏳ pending |
-| D. Quality | Retrieval Eval Runner | ⏳ pending |
-| D. Quality | Eval Runs in CI | ⏳ pending |
+| Category | Features | Status |
+|----------|----------|--------|
+| Core | Window, Document List, Question Panel, Data Directory, Import, Detail, Basic Persistence, Chunking, Metadata, Indexing Status | ✓ pass (10) |
+| Chat | Chat Pivot, Session CRUD, Auto-Title, Streaming, Multi-Tool, Cancellation, Chat Session Persistence | ✓ pass (10) |
+| Q&A | Grounded Q&A, Citations, Confidence, Conversation History, Feedback | ✓ pass (5) |
+| KB View | KB Reset, KB RAG Display, KB Q&A Source, KB Toggle, KB Indexing | ✓ pass (5) |
+| Web Search | Tavily Integration, Web Search Tool, Web Source Display, Web + KB Combined | ✓ pass (4) |
+| File Upload | File Upload Tool, Text Extraction, File Preview in Chat | ✓ pass (3) |
+| LLM | NVIDIA NIM, Model Selection, Chunk Caching, API Key Validation, Embedding Key | ✓ pass (5) |
+| UX | Theme Toggle, Settings Panel, LLM Settings, Settings Persistence | ✓ pass (4) |
+| Infrastructure | Clean State Reset, Data Reset, Benchmark, Cleanup Scanner | ✓ pass (4) |
+| Tooling | Complete Harness, Feature Tracker, Pipeline | ✓ pass (3) |
 
-**Remaining phases (planned):** F. LLM Foundation (3 features), G. Answer Generation (2 features), H. UX & Quality (3 features)
-
-**Harness completeness:** 15/15 files present
-
-**Benchmark scripts:** Fully functional
-
-**Cleanup scanner:** Operational
-
-**Overall grade:** A+ (97/100)
+**Test coverage:** 204 tests across 24 test files — all passing.
 
 ## Performance Targets
 
 - **Import throughput:** 10+ files per batch under 1 second
 - **Indexing speed:** 100+ chunks per second
 - **Embedding throughput:** 750+ texts per second (batch)
-- **Query latency:** Under 500ms per question (retrieval + answer)
-- **Citation accuracy:** Top 2 chunks must be relevant
+- **Query latency:** Under 500ms retrieval, LLM streaming adds token-by-token latency
 
 ## Constraints
 
 - Maximum file size: 10 MB
-- Supported formats: `.txt`, `.md`
-- Q&A uses mock patterns (no LLM integration — planned)
-- All data is local (no network requests)
-- Embeddings computed locally (no API calls)
-- Logs to console only (no file-based logging)
+- Supported formats: `.txt`, `.md`, `.pdf`, `.docx`, `.json`
+- LLM features require NVIDIA NIM API key
+- Web search requires Tavily API key
+- All document data is local
+- Embeddings computed locally
 
 ## License
 
-This is a demonstration project for AI-assisted development workflows.
+Demonstration project for AI-assisted development workflows.
 
 ## Contributing
-
-This project uses a structured development harness designed for AI agents. Before contributing:
 
 1. Read `AGENTS.md` for conventions and boundaries
 2. Read `docs/ARCHITECTURE.md` for system structure
@@ -372,7 +254,3 @@ This project uses a structured development harness designed for AI agents. Befor
 5. Run `bash scripts/cleanup-scanner.sh` to verify data integrity
 6. Update `feature_list.json` with evidence when completing features
 7. Update relevant docs when adding features
-
-## Contact
-
-For questions about the harness methodology or architecture decisions, see the documentation in `docs/`.

@@ -23,6 +23,7 @@ Before writing any code, complete these steps in order:
 - Web search integration via Tavily API
 - File upload with text extraction for chat context
 - Feedback collection on Q&A responses
+- Theme toggle (dark/light with CSS custom properties)
 - Clean state reset for testing
 - Benchmark scripts for performance measurement
 - Cleanup scanner for detecting stale artifacts
@@ -52,7 +53,7 @@ When adding new features, update the relevant doc before writing code.
 
 - The ONLY bridge between main and renderer.
 - Uses `contextBridge.exposeInMainWorld` to expose typed APIs.
-- Exposes: documents, indexing, qa, feedback, app, llm, settings, sessions, chat namespaces.
+- Exposes: documents, indexing, qa, feedback, app, llm, settings, llmSettings, sessions, chat namespaces.
 
 ### Renderer (`src/renderer/`)
 
@@ -100,7 +101,7 @@ A feature is "done" when:
 
 ## Session Handoff
 
-When resuming work, read `session-handoff.md` and `docs/superpowers/plans/` for context from the previous session. When finishing a session, update it with:
+When resuming work, read `session-handoff.md` for context from the previous session. When finishing a session, update it with:
 
 - What was accomplished
 - What remains
@@ -112,8 +113,8 @@ Update the `agent-progress.md` by appending a new entry with implementation deta
 
 ## Testing
 
-- **Always use `npm test`** to run all 153 tests across 22 test files. This handles the native module rebuild: `pretest` rebuilds `better-sqlite3` for Node.js, then vitest runs, then `posttest` rebuilds it back for Electron.
-- **Never run `npx vitest run` directly** — it skips the `pretest` hook, so 18 test files fail with `NODE_MODULE_VERSION` mismatch (Node.js 127 vs Electron 146).
+- **Always use `npm test`** to run all 204 tests across 24 test files. This handles the native module rebuild: `pretest` rebuilds `better-sqlite3` for Node.js, then vitest runs, then `posttest` rebuilds it back for Electron.
+- **Never run `npx vitest run` directly** — it skips the `pretest` hook, so test files fail with `NODE_MODULE_VERSION` mismatch (Node.js 127 vs Electron 146).
 - To run a single test file: `npx vitest run test/<file>.test.ts` — but only after running `npm rebuild better-sqlite3` first.
 - Vitest picks up all `*.test.ts` files under `test/` automatically.
 

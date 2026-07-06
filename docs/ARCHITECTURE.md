@@ -51,7 +51,7 @@ An Electron desktop application built with TypeScript and React. The app is a tw
 ### Main Process (`src/main/`)
 
 - **Window management**: Creates `BrowserWindow` instance with secure web preferences.
-- **IPI registration**: Maps IPC channel names to service methods via `registerIpcHandlers()`.
+- **IPC registration**: Maps IPC channel names to service methods via `registerIpcHandlers()`.
 - **Service initialization**: Constructs all services with dependency injection; reads `.env` via `env-config.ts` before services start.
 
 ### Preload (`src/preload/`)
@@ -65,7 +65,7 @@ window.knowledgeBase = {
   qa:         { ask, askStream, cancel, history, clearHistory, retrieveDebug,
                 onStreamChunk, onStreamDone },
   feedback:   { submit, list },
-  app:        { reset, status },
+  app:        { resetData, readFile },
   llm:        { health },
   settings:   { get, set },
   llmSettings:{ get, set },
