@@ -107,7 +107,7 @@ Every log entry is a single-line JSON object:
 
 ### Configuring Log Level
 
-Set the `LOG_LEVEL` environment variable:
+Set the `LOG_LEVEL` environment variable (in the packaged app, set this before launching):
 ```bash
 LOG_LEVEL=INFO npm run dev  # Only INFO, WARN, ERROR
 LOG_LEVEL=WARN npm run dev  # Only WARN and ERROR
@@ -126,7 +126,7 @@ Clean state management ensures that testing and benchmarking start from a known,
 
 The application provides a `RESET_DATA` IPC channel that:
 
-1. Removes the entire data directory (`<project-root>/knowledge-base-data/`)
+1. Removes the entire data directory (`knowledge-base-data/` under dev or `app.getPath('userData')` when packaged)
 2. Recreates and initialises the directory structure
 3. Returns a success response
 4. The renderer clears all React state and refreshes

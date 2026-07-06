@@ -295,6 +295,13 @@ schema_meta (key, value) -- migration version tracking
 
 ### Filesystem Layout
 
+Data directory depends on runtime mode:
+
+| Mode | Path |
+|------|------|
+| Development (`npm run dev`) | `<project-root>/knowledge-base-data/` |
+| Production (packaged app) | `app.getPath('userData')/knowledge-base-data/` — i.e., `~/.config/knowledge-base/` (Linux), `~/Library/Application Support/knowledge-base/` (macOS), `%APPDATA%/knowledge-base/` (Windows) |
+
 ```
 knowledge-base-data/
   index.db               # SQLite (all structured data)
@@ -303,6 +310,36 @@ knowledge-base-data/
   settings.json          # RetrievalSettings + LlmSettings
   legacy/                # one-time backup of pre-SQLite JSON
 ```
+
+## Packaging
+
+The app is packaged using `electron-builder`. Configuration lives in `electron-builder.yml`.
+
+### Files included in package
+
+- `dist/**/*` — compiled TypeScript (main process, preload, services, SQL migrations)
+- `package.json` — app metadata
+- `node_modules/` — pruned by electron-builder (native modules in `asarUnpack`)
+
+`better-sqlite3` is unpacked from the ASAR archive (`asarUnpack`) because it's a native Electron module.
+
+### Build scripts
+
+| Command | Output |
+|---------|--------|
+| `npm run package` | Platform-specific installer (current OS) |
+| `npm run package:linux` | `.AppImage` + `.deb` in `release/` |
+| `npm run package:mac` | `.dmg` in `release/` |
+| `npm run package:win` | `.exe` installer in `release/` |
+
+Internally these run `npm run build` (TypeScript compile + Vite + migration copy) followed by `electron-builder`.
+
+### Environment variables at runtime
+
+Packaged apps read API keys from system environment variables (not `.env`):
+
+- `NVIDIA_API_KEY` — required for LLM features
+- `TAVILY_API_KEY` — required for web search
 
 ## Logging
 

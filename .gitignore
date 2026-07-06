@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Packaged releases
+release/
+
 # Electron app data (runtime user data, not source)
 knowledge-base-data/
 

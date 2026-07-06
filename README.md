@@ -156,6 +156,58 @@ npm run build    # Production build
 npm test         # Run all 204 tests
 ```
 
+## Packaging
+
+Build a distributable installer for your platform:
+
+```bash
+npm run package           # Package for current platform
+npm run package:linux     # Linux AppImage + .deb
+npm run package:mac       # macOS .dmg
+npm run package:win       # Windows .exe installer
+```
+
+Output goes to `release/`.
+
+### Running the Packaged App
+
+The packaged app reads the following environment variables at runtime. Set them **before** launching the app:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NVIDIA_API_KEY` | For LLM features | NVIDIA NIM API key (e.g., `nvapi-...`) |
+| `TAVILY_API_KEY` | For web search | Tavily search API key (e.g., `tvly-...`) |
+
+**Linux (AppImage):**
+```bash
+export NVIDIA_API_KEY=nvapi-...
+export TAVILY_API_KEY=tvly-...
+./"Knowledge Base-*.AppImage"
+```
+
+**Linux (.deb):** After installing, set env vars and launch from terminal:
+```bash
+export NVIDIA_API_KEY=nvapi-...
+export TAVILY_API_KEY=tvly-...
+knowledge-base
+```
+
+**macOS:** Set env vars in Terminal before opening the app, or create a launcher script:
+```bash
+export NVIDIA_API_KEY=nvapi-...
+export TAVILY_API_KEY=tvly-...
+open /Applications/Knowledge\ Base.app
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:NVIDIA_API_KEY="nvapi-..."
+$env:TAVILY_API_KEY="tvly-..."
+& "C:\Program Files\Knowledge Base\Knowledge Base.exe"
+```
+
+Data is stored in the OS-standard user data directory (`~/.config/knowledge-base/` on Linux, `~/Library/Application Support/knowledge-base/` on macOS, `%APPDATA%/knowledge-base/` on Windows).
+
 ## The Harness
 
 This project includes a comprehensive development harness for AI agents and human developers:

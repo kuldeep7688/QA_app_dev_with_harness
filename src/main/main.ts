@@ -81,9 +81,9 @@ function initializeServices() {
   // Load environment config before any services initialize
   loadEnvConfig();
 
-  // Use project directory for data storage (easier for development)
-  // In production, you might want to use app.getPath('userData') instead
-  const dataDir = path.join(__dirname, '../../knowledge-base-data');
+  const dataDir = app.isPackaged
+    ? path.join(app.getPath('userData'), 'knowledge-base-data')
+    : path.join(__dirname, '../../knowledge-base-data');
   const persistence = new PersistenceService(dataDir);
   
   // Initialize SQLite database

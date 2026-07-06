@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "build": "bash scripts/build.sh",
+    "package": "npm run build && electron-builder",
+    "package:linux": "npm run build && electron-builder --linux",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
     "check": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -36,6 +40,7 @@
     "@types/uuid": "^9.0.7",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^42.5.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
     "vitest": "^4.1.9"
